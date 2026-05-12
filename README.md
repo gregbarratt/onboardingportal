@@ -128,3 +128,22 @@ Agent profile endpoints:
 - `GET /agents`
 - `GET /agents/{id}`
 - `PUT /agents/{id}`
+
+## Membership and Payment Tracking
+
+This phase tracks membership and payment information, but it does not charge real money.
+
+Membership records store the agent's membership type, setup fee, monthly fee, membership status, payment status, Stripe reference fields, key payment dates, access level, and internal notes.
+
+Payment records store individual payment entries, such as setup fees, monthly fees, manual payments, failed payments, refunds, invoice links, and notes.
+
+Stripe is not fully connected yet. Placeholder functions have been added so a real Stripe connection can be added safely in a later phase.
+
+Membership and payment endpoints:
+
+- `GET /agents/{id}/membership`
+- `PUT /agents/{id}/membership`
+- `POST /agents/{id}/payments`
+- `GET /agents/{id}/payments`
+
+Agents can view their own membership and payments. Admins can manage membership and payment status. Payment status changes will be connected to audit logs in a later phase.
