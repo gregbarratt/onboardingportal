@@ -4,6 +4,7 @@ from app.api.agents import router as agents_router
 from app.api.auth import router as auth_router
 from app.api.health import router as health_router
 from app.api.memberships import router as memberships_router
+from app.api.onboarding import router as onboarding_router
 
 
 app = FastAPI(
@@ -14,4 +15,5 @@ app = FastAPI(
 app.include_router(auth_router)
 app.include_router(agents_router)
 app.include_router(memberships_router)
+app.include_router(onboarding_router)
 app.include_router(health_router)

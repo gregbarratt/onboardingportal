@@ -147,3 +147,20 @@ Membership and payment endpoints:
 - `GET /agents/{id}/payments`
 
 Agents can view their own membership and payments. Admins can manage membership and payment status. Payment status changes will be connected to audit logs in a later phase.
+
+## Onboarding Checklist
+
+The onboarding checklist is the set of steps an agent must complete before they can trade.
+
+It includes profile completion, ID and proof of address checks, bank details, agreements, membership payment setup, welcome and compliance calls, training, social media policy acceptance, final assessment, and admin final approval.
+
+Admins can create or update checklist steps. Agents can see their own checklist and add notes or evidence links. Admins can approve checklist items that need review.
+
+Onboarding endpoints:
+
+- `GET /onboarding/steps`
+- `POST /onboarding/steps`
+- `PUT /onboarding/steps/{id}`
+- `GET /agents/{id}/onboarding`
+- `PUT /agents/{id}/onboarding/{progress_id}`
+- `POST /agents/{id}/onboarding/{progress_id}/approve`
