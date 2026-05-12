@@ -1,0 +1,41 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+.Python
+.venv/
+venv/
+env/
+
+# FastAPI / local backend files
+*.db
+*.sqlite3
+
+# Node / React
+node_modules/
+dist/
+build/
+.vite/
+
+# Environment files with private secrets
+.env
+.env.local
+.env.*.local
+
+# Git data folder used by this local Codex workspace
+_git_data/
+
+# Local SSH key for pushing to this GitHub repository
+_ssh/
+
+# Editor and operating system files
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Logs
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
