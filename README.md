@@ -78,3 +78,29 @@ alembic heads
 Once a real PostgreSQL database exists and `DATABASE_URL` has real details, `alembic current` can show which migration the database has reached.
 
 This phase does not create business tables yet. Those start in Phase 3 and Phase 4.
+
+## Authentication
+
+Authentication means proving who someone is before they can use private parts of the portal.
+
+This project now has basic user accounts, password protection, login tokens, and roles.
+
+The built-in roles are:
+
+- Super Admin
+- Admin
+- Training Manager
+- Compliance Manager
+- Agent
+
+Agents and admins need different roles because they should not see or change the same information. For example, an agent should see their own onboarding tasks, while an admin can later approve agents and manage compliance.
+
+A login token is a temporary digital pass. After someone logs in, the backend gives them a token. The frontend will send that token back with future requests so the backend knows who is using the portal.
+
+Authentication endpoints:
+
+- `POST /auth/register`
+- `POST /auth/login`
+- `GET /auth/me`
+
+Registration currently creates an `Agent` user. Admin users will be created through controlled setup and seed data in later phases.
