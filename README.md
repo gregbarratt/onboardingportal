@@ -164,3 +164,25 @@ Onboarding endpoints:
 - `GET /agents/{id}/onboarding`
 - `PUT /agents/{id}/onboarding/{progress_id}`
 - `POST /agents/{id}/onboarding/{progress_id}/approve`
+
+## Training Academy
+
+The Training Academy stores lessons that agents complete during onboarding and later development.
+
+Training modules can include text, videos, PDFs, external links, quizzes, pass marks, certificates, and renewal settings.
+
+The default mandatory modules have been added, including welcome training, travel sales basics, compliance, CRM, supplier training, social media policy, GDPR, and the final assessment.
+
+Admins can create, update, publish, archive, and assign training modules. Agents can see their assigned training and update their own progress, while admin-only result fields such as scores and certificates stay protected.
+
+Training endpoints:
+
+- `GET /training/modules`
+- `POST /training/modules`
+- `GET /training/modules/{id}`
+- `PUT /training/modules/{id}`
+- `POST /training/modules/{id}/publish`
+- `POST /training/modules/{id}/archive`
+- `POST /training/modules/{id}/assign`
+- `GET /agents/{id}/training`
+- `PUT /agents/{id}/training/{progress_id}`

@@ -13,6 +13,7 @@ if TYPE_CHECKING:
     from app.models.onboarding import AgentOnboardingProgress
     from app.models.membership import Membership
     from app.models.payment import Payment
+    from app.models.training import AgentTrainingProgress, TrainingAssignment
     from app.models.user import User
 
 
@@ -69,6 +70,14 @@ class AgentProfile(Base):
         cascade="all, delete-orphan",
     )
     onboarding_progress: Mapped[list[AgentOnboardingProgress]] = relationship(
+        back_populates="agent",
+        cascade="all, delete-orphan",
+    )
+    training_assignments: Mapped[list[TrainingAssignment]] = relationship(
+        back_populates="agent",
+        cascade="all, delete-orphan",
+    )
+    training_progress: Mapped[list[AgentTrainingProgress]] = relationship(
         back_populates="agent",
         cascade="all, delete-orphan",
     )
