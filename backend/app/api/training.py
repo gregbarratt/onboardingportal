@@ -7,7 +7,11 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.api.agents import check_agent_access, get_agent_or_404, is_admin_user
 from app.api.deps import get_current_active_user
-from app.core.training import DEFAULT_TRAINING_PROGRESS_STATUS
+from app.core.training import (
+    DEFAULT_TRAINING_PROGRESS_STATUS,
+    DEFAULT_TRAINING_TRACK,
+    FURTHER_TRAINING_TRACK,
+)
 from app.db.session import get_db
 from app.models.agent_profile import AgentProfile
 from app.models.training import (
@@ -131,6 +135,7 @@ def ensure_mandatory_training_assignments(db: Session, agent_profile: AgentProfi
             .where(
                 TrainingModule.mandatory.is_(True),
                 TrainingModule.published_status == "Published",
+                TrainingModule.training_track == DEFAULT_TRAINING_TRACK,
             )
             .order_by(TrainingModule.id)
         )
@@ -140,6 +145,80 @@ def ensure_mandatory_training_assignments(db: Session, agent_profile: AgentProfi
     db.commit()
 
 
+def ensure_mandatory_further_training_assignments(db: Session, agent_profile: AgentProfile) -> None:
+    mandatory_modules = list(
+        db.scalars(
+            select(TrainingModule)
+            .where(
+                TrainingModule.mandatory.is_(True),
+                TrainingModule.published_status == "Published",
+                TrainingModule.training_track == FURTHER_TRAINING_TRACK,
+            )
+            .order_by(TrainingModule.id)
+        )
+    )
+    for training_module in mandatory_modules:
+        ensure_training_assignment(db, agent_profile, training_module)
+    db.commit()
+
+
+def get_own_agent_profile_or_404(db: Session, current_user: User) -> AgentProfile:
+    agent_profile = db.scalar(select(AgentProfile).where(AgentProfile.user_id == current_user.id))
+    if agent_profile is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Agent profile not found for this user.",
+        )
+    return agent_profile
+
+
+def get_missing_mandatory_onboarding_training(db: Session, agent_profile: AgentProfile) -> list[str]:
+    ensure_mandatory_training_assignments(db, agent_profile)
+    mandatory_modules = list(
+        db.scalars(
+            select(TrainingModule)
+            .where(
+                TrainingModule.mandatory.is_(True),
+                TrainingModule.published_status == "Published",
+                TrainingModule.training_track == DEFAULT_TRAINING_TRACK,
+            )
+            .order_by(TrainingModule.id)
+        )
+    )
+    progress_records = list(
+        db.scalars(
+            select(AgentTrainingProgress).where(
+                AgentTrainingProgress.agent_id == agent_profile.id,
+                AgentTrainingProgress.training_module_id.in_([module.id for module in mandatory_modules] or [0]),
+            )
+        )
+    )
+    progress_by_module_id = {
+        progress.training_module_id: progress
+        for progress in progress_records
+    }
+
+    missing_modules = []
+    for training_module in mandatory_modules:
+        progress = progress_by_module_id.get(training_module.id)
+        if progress is None or progress.progress_status != "Complete":
+            missing_modules.append(training_module.title)
+            continue
+        if training_module.quiz_required and progress.passed is not True:
+            missing_modules.append(training_module.title)
+    return missing_modules
+
+
+def raise_if_further_training_locked(db: Session, agent_profile: AgentProfile) -> None:
+    missing_modules = get_missing_mandatory_onboarding_training(db, agent_profile)
+    if missing_modules:
+        missing_list = ", ".join(missing_modules)
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail=f"Further training is locked until mandatory onboarding training is complete. Missing: {missing_list}.",
+        )
+
+
 @router.get("/training/modules", response_model=list[TrainingModuleRead])
 def list_training_modules(
     db: Session = Depends(get_db),
@@ -147,7 +226,10 @@ def list_training_modules(
 ) -> list[TrainingModule]:
     query = select(TrainingModule).options(selectinload(TrainingModule.category)).order_by(TrainingModule.id)
     if not is_admin_user(current_user):
-        query = query.where(TrainingModule.published_status == "Published")
+        query = query.where(
+            TrainingModule.published_status == "Published",
+            TrainingModule.training_track == DEFAULT_TRAINING_TRACK,
+        )
     return list(db.scalars(query))
 
 
@@ -182,6 +264,7 @@ def create_training_module(
         renewal_required=request.renewal_required,
         renewal_period_months=request.renewal_period_months,
         expiry_date=request.expiry_date,
+        training_track=request.training_track,
         published_status=request.published_status,
         created_by=current_user.id,
     )
@@ -212,6 +295,9 @@ def get_training_module(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This training module is not published.",
         )
+    if not is_admin_user(current_user) and training_module.training_track == FURTHER_TRAINING_TRACK:
+        agent_profile = get_own_agent_profile_or_404(db, current_user)
+        raise_if_further_training_locked(db, agent_profile)
     return training_module
 
 
@@ -342,6 +428,7 @@ def list_agent_training(
             )
             .where(AgentTrainingProgress.agent_id == agent_profile.id)
             .join(TrainingModule)
+            .where(TrainingModule.training_track == DEFAULT_TRAINING_TRACK)
             .order_by(TrainingModule.id)
         )
     )
@@ -374,6 +461,9 @@ def update_agent_training_progress(
             detail="Only admins can update training scores, pass results, and certificates.",
         )
 
+    if not admin_user and progress.training_module.training_track == FURTHER_TRAINING_TRACK:
+        raise_if_further_training_locked(db, agent_profile)
+
     if "progress_status" in update_data and update_data["progress_status"] == "In Progress":
         if update_data.get("started_date") is None and progress.started_date is None:
             progress.started_date = date.today()
@@ -393,3 +483,50 @@ def update_agent_training_progress(
     db.commit()
     db.refresh(progress)
     return get_training_progress_or_404(db, progress.id)
+
+
+@router.get("/further-training", response_model=list[TrainingModuleRead])
+def list_further_training_modules(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> list[TrainingModule]:
+    if not is_admin_user(current_user):
+        agent_profile = get_own_agent_profile_or_404(db, current_user)
+        raise_if_further_training_locked(db, agent_profile)
+
+    query = (
+        select(TrainingModule)
+        .options(selectinload(TrainingModule.category))
+        .where(TrainingModule.training_track == FURTHER_TRAINING_TRACK)
+        .order_by(TrainingModule.id)
+    )
+    if not is_admin_user(current_user):
+        query = query.where(TrainingModule.published_status == "Published")
+    return list(db.scalars(query))
+
+
+@router.get("/agents/{agent_profile_id}/further-training", response_model=list[AgentTrainingProgressRead])
+def list_agent_further_training(
+    agent_profile_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> list[AgentTrainingProgress]:
+    agent_profile = get_agent_or_404(db, agent_profile_id)
+    check_agent_access(agent_profile, current_user)
+    raise_if_further_training_locked(db, agent_profile)
+    ensure_mandatory_further_training_assignments(db, agent_profile)
+    return list(
+        db.scalars(
+            select(AgentTrainingProgress)
+            .options(
+                selectinload(AgentTrainingProgress.assignment),
+                selectinload(AgentTrainingProgress.training_module).selectinload(TrainingModule.category),
+            )
+            .join(TrainingModule)
+            .where(
+                AgentTrainingProgress.agent_id == agent_profile.id,
+                TrainingModule.training_track == FURTHER_TRAINING_TRACK,
+            )
+            .order_by(TrainingModule.id)
+        )
+    )

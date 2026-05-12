@@ -5,8 +5,10 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from app.core.training import (
     DEFAULT_TRAINING_PROGRESS_STATUS,
     DEFAULT_TRAINING_PUBLISHED_STATUS,
+    DEFAULT_TRAINING_TRACK,
     TRAINING_PROGRESS_STATUSES,
     TRAINING_PUBLISHED_STATUSES,
+    TRAINING_TRACKS,
 )
 
 
@@ -47,6 +49,7 @@ class TrainingModuleCreate(BaseModel):
     renewal_required: bool = False
     renewal_period_months: int | None = Field(default=None, ge=1)
     expiry_date: date | None = None
+    training_track: str = DEFAULT_TRAINING_TRACK
     published_status: str = DEFAULT_TRAINING_PUBLISHED_STATUS
 
     @field_validator("title")
@@ -79,6 +82,14 @@ class TrainingModuleCreate(BaseModel):
             raise ValueError("Enter a valid published status.")
         return cleaned
 
+    @field_validator("training_track")
+    @classmethod
+    def training_track_must_be_allowed(cls, value: str) -> str:
+        cleaned = clean_required_text(value)
+        if cleaned not in TRAINING_TRACKS:
+            raise ValueError("Enter a valid training track.")
+        return cleaned
+
 
 class TrainingModuleUpdate(BaseModel):
     title: str | None = Field(default=None, min_length=1, max_length=255)
@@ -98,6 +109,7 @@ class TrainingModuleUpdate(BaseModel):
     renewal_required: bool | None = None
     renewal_period_months: int | None = Field(default=None, ge=1)
     expiry_date: date | None = None
+    training_track: str | None = None
     published_status: str | None = None
 
     @field_validator("title")
@@ -134,6 +146,16 @@ class TrainingModuleUpdate(BaseModel):
             raise ValueError("Enter a valid published status.")
         return cleaned
 
+    @field_validator("training_track")
+    @classmethod
+    def training_track_must_be_allowed(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = clean_required_text(value)
+        if cleaned not in TRAINING_TRACKS:
+            raise ValueError("Enter a valid training track.")
+        return cleaned
+
 
 class TrainingModuleRead(BaseModel):
     id: int
@@ -155,6 +177,7 @@ class TrainingModuleRead(BaseModel):
     renewal_required: bool
     renewal_period_months: int | None = None
     expiry_date: date | None = None
+    training_track: str = DEFAULT_TRAINING_TRACK
     published_status: str = DEFAULT_TRAINING_PUBLISHED_STATUS
     created_by: int | None = None
     created_date: datetime

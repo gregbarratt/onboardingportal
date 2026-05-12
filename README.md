@@ -186,3 +186,18 @@ Training endpoints:
 - `POST /training/modules/{id}/assign`
 - `GET /agents/{id}/training`
 - `PUT /agents/{id}/training/{progress_id}`
+
+## Further Training
+
+Further Training is the ongoing development area for agents after onboarding training is complete.
+
+It reuses the Training Academy system, so further training modules can still have categories, videos, PDFs, quizzes, pass marks, certificates, renewal settings, and admin assignment.
+
+Further Training stays locked for an agent until all mandatory onboarding training is complete. Admins can mark any further training module as mandatory later.
+
+Example optional modules have been added, including sales development, destination knowledge, cruise, Disney, marketing, compliance refresher, and advanced CRM training.
+
+Further training endpoints:
+
+- `GET /further-training`
+- `GET /agents/{id}/further-training`

@@ -6,7 +6,11 @@ from typing import TYPE_CHECKING
 from sqlalchemy import Boolean, Date, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint, func, false
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
-from app.core.training import DEFAULT_TRAINING_PROGRESS_STATUS, DEFAULT_TRAINING_PUBLISHED_STATUS
+from app.core.training import (
+    DEFAULT_TRAINING_PROGRESS_STATUS,
+    DEFAULT_TRAINING_PUBLISHED_STATUS,
+    DEFAULT_TRAINING_TRACK,
+)
 from app.db.base import Base
 
 if TYPE_CHECKING:
@@ -52,6 +56,13 @@ class TrainingModule(Base):
     renewal_required: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
     renewal_period_months: Mapped[int | None] = mapped_column(Integer, nullable=True)
     expiry_date: Mapped[date | None] = mapped_column(Date, nullable=True)
+    training_track: Mapped[str] = mapped_column(
+        String(50),
+        default=DEFAULT_TRAINING_TRACK,
+        server_default=DEFAULT_TRAINING_TRACK,
+        index=True,
+        nullable=False,
+    )
     published_status: Mapped[str] = mapped_column(
         String(50),
         default=DEFAULT_TRAINING_PUBLISHED_STATUS,
