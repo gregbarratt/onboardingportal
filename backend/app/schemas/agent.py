@@ -1,0 +1,154 @@
+from datetime import date, datetime
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+
+from app.core.agent_statuses import AGENT_STATUSES
+
+
+def clean_optional_text(value: str | None) -> str | None:
+    if value is None:
+        return None
+    cleaned = value.strip()
+    return cleaned or None
+
+
+def clean_required_text(value: str) -> str:
+    return value.strip()
+
+
+class AgentProfileBase(BaseModel):
+    first_name: str = Field(min_length=1, max_length=100)
+    last_name: str = Field(min_length=1, max_length=100)
+    email: str = Field(min_length=3, max_length=255)
+    phone: str | None = Field(default=None, max_length=50)
+    business_name: str | None = Field(default=None, max_length=255)
+    joining_date: date | None = None
+    address: str | None = None
+    postcode: str | None = Field(default=None, max_length=20)
+    commission_bank_name: str | None = Field(default=None, max_length=255)
+    commission_account_name: str | None = Field(default=None, max_length=255)
+    commission_sort_code: str | None = Field(default=None, max_length=20)
+    commission_account_number: str | None = Field(default=None, max_length=30)
+
+    @field_validator("first_name", "last_name")
+    @classmethod
+    def required_text_must_not_be_blank(cls, value: str) -> str:
+        cleaned = clean_required_text(value)
+        if not cleaned:
+            raise ValueError("This field is required.")
+        return cleaned
+
+    @field_validator("email")
+    @classmethod
+    def email_must_look_valid(cls, value: str) -> str:
+        cleaned = value.strip().lower()
+        if "@" not in cleaned or "." not in cleaned.rsplit("@", 1)[-1]:
+            raise ValueError("Enter a valid email address.")
+        return cleaned
+
+    @field_validator(
+        "phone",
+        "business_name",
+        "address",
+        "postcode",
+        "commission_bank_name",
+        "commission_account_name",
+        "commission_sort_code",
+        "commission_account_number",
+    )
+    @classmethod
+    def optional_text_can_be_blank(cls, value: str | None) -> str | None:
+        return clean_optional_text(value)
+
+
+class AgentProfileCreate(AgentProfileBase):
+    user_id: int | None = None
+    agent_id: str | None = Field(default=None, max_length=50)
+    status: str | None = None
+
+    @field_validator("agent_id")
+    @classmethod
+    def agent_id_can_be_blank(cls, value: str | None) -> str | None:
+        return clean_optional_text(value)
+
+    @field_validator("status")
+    @classmethod
+    def status_must_be_allowed(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        if cleaned not in AGENT_STATUSES:
+            raise ValueError("Enter a valid agent status.")
+        return cleaned
+
+
+class AgentProfileUpdate(BaseModel):
+    first_name: str | None = Field(default=None, min_length=1, max_length=100)
+    last_name: str | None = Field(default=None, min_length=1, max_length=100)
+    email: str | None = Field(default=None, min_length=3, max_length=255)
+    phone: str | None = Field(default=None, max_length=50)
+    business_name: str | None = Field(default=None, max_length=255)
+    status: str | None = None
+    joining_date: date | None = None
+    address: str | None = None
+    postcode: str | None = Field(default=None, max_length=20)
+    commission_bank_name: str | None = Field(default=None, max_length=255)
+    commission_account_name: str | None = Field(default=None, max_length=255)
+    commission_sort_code: str | None = Field(default=None, max_length=20)
+    commission_account_number: str | None = Field(default=None, max_length=30)
+
+    @field_validator("first_name", "last_name")
+    @classmethod
+    def required_text_must_not_be_blank(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = clean_required_text(value)
+        if not cleaned:
+            raise ValueError("This field cannot be blank.")
+        return cleaned
+
+    @field_validator("email")
+    @classmethod
+    def email_must_look_valid(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip().lower()
+        if "@" not in cleaned or "." not in cleaned.rsplit("@", 1)[-1]:
+            raise ValueError("Enter a valid email address.")
+        return cleaned
+
+    @field_validator("status")
+    @classmethod
+    def status_must_be_allowed(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        if cleaned not in AGENT_STATUSES:
+            raise ValueError("Enter a valid agent status.")
+        return cleaned
+
+    @field_validator(
+        "phone",
+        "business_name",
+        "address",
+        "postcode",
+        "commission_bank_name",
+        "commission_account_name",
+        "commission_sort_code",
+        "commission_account_number",
+    )
+    @classmethod
+    def optional_text_can_be_blank(cls, value: str | None) -> str | None:
+        return clean_optional_text(value)
+
+
+class AgentProfileRead(AgentProfileBase):
+    id: int
+    user_id: int
+    agent_id: str
+    status: str
+    created_at: datetime
+    updated_at: datetime
+
+    model_config = ConfigDict(from_attributes=True)
+

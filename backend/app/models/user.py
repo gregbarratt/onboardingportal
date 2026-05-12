@@ -1,12 +1,16 @@
 from __future__ import annotations
 
 from datetime import datetime
+from typing import TYPE_CHECKING
 
 from sqlalchemy import Boolean, DateTime, ForeignKey, String, func, true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db.base import Base
 from app.models.role import Role
+
+if TYPE_CHECKING:
+    from app.models.agent_profile import AgentProfile
 
 
 class User(Base):
@@ -35,3 +39,8 @@ class User(Base):
     )
 
     role: Mapped[Role] = relationship(back_populates="users")
+    agent_profile: Mapped[AgentProfile | None] = relationship(
+        back_populates="user",
+        cascade="all, delete-orphan",
+        uselist=False,
+    )

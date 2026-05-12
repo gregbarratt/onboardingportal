@@ -104,3 +104,27 @@ Authentication endpoints:
 - `GET /auth/me`
 
 Registration currently creates an `Agent` user. Admin users will be created through controlled setup and seed data in later phases.
+
+## Agent Profiles
+
+An agent profile stores the business and contact information for a travel agent.
+
+It is linked to a user account. The user account is for logging in; the agent profile is for the agent's onboarding record.
+
+Agent profile information includes:
+
+- Name and contact details
+- Business name
+- Agent status
+- Joining date
+- Address and postcode
+- Bank details for commission payments
+
+Admins can see and manage all agent profiles. Agents can only see their own profile. Agents can update their own personal details, but only an admin can update an agent status.
+
+Agent profile endpoints:
+
+- `POST /agents`
+- `GET /agents`
+- `GET /agents/{id}`
+- `PUT /agents/{id}`
