@@ -27,6 +27,34 @@ Each completed phase will be saved as a commit. A commit is like a labelled chec
 ## Phase Progress
 
 - Phase 0: Project and GitHub setup
+- Phase 1: Backend foundation
 
-No app features have been built yet. This phase only creates the project structure.
+## Backend
 
+The backend is the private engine of the system. It is built with FastAPI, a Python tool for creating web APIs.
+
+An API is a set of web addresses the frontend can talk to. In this phase, there is one simple test address:
+
+`GET /health`
+
+It returns:
+
+```json
+{
+  "status": "ok",
+  "message": "Travel Agent Onboarding Hub backend is running"
+}
+```
+
+To start the backend later, Python must be installed first. Once Python is installed, use these commands from the `backend` folder:
+
+```bash
+python -m venv .venv
+.venv\Scripts\activate
+pip install -r requirements.txt
+uvicorn app.main:app --reload
+```
+
+Then open:
+
+`http://127.0.0.1:8000/health`
