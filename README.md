@@ -58,3 +58,23 @@ uvicorn app.main:app --reload
 Then open:
 
 `http://127.0.0.1:8000/health`
+
+## Database Setup
+
+The database will store the portal information, such as users, agents, payments, training progress, documents, and approvals.
+
+This project is prepared for PostgreSQL. PostgreSQL is a reliable database system often used for business web apps.
+
+The backend reads the database connection from `DATABASE_URL`. That value lives in a private `.env` file later. The safe example is shown in `.env.example`.
+
+Alembic is also set up. Alembic tracks database changes in small files called migrations. A migration is like a database checkpoint: it says what changed and lets us apply those changes in the right order.
+
+To check that Alembic can see its migration files, use this command from the `backend` folder:
+
+```bash
+alembic heads
+```
+
+Once a real PostgreSQL database exists and `DATABASE_URL` has real details, `alembic current` can show which migration the database has reached.
+
+This phase does not create business tables yet. Those start in Phase 3 and Phase 4.
