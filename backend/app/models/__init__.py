@@ -1,4 +1,5 @@
 from app.models.agent_profile import AgentProfile
+from app.models.document import Document
 from app.models.live_training import AttendanceLog, LiveTrainingSession
 from app.models.membership import Membership
 from app.models.onboarding import AgentOnboardingProgress, OnboardingStep
@@ -17,6 +18,7 @@ __all__ = [
     "AgentTrainingProgress",
     "AgentProfile",
     "AttendanceLog",
+    "Document",
     "LiveTrainingSession",
     "Membership",
     "OnboardingStep",

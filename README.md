@@ -36,6 +36,7 @@ Each completed phase will be saved as a commit. A commit is like a labelled chec
 - Phase 7: Training academy
 - Phase 8: Further training
 - Phase 9: Live calls and attendance logging
+- Phase 10: Documents and agreements
 
 ## Backend
 
@@ -228,3 +229,20 @@ Live call and attendance endpoints:
 - `POST /live-sessions/{id}/attendance`
 - `POST /live-sessions/{id}/attendance/bulk`
 - `GET /agents/{id}/attendance`
+
+## Documents and Agreements
+
+Documents are the contracts, ID checks, proof of address files, policies, bank confirmations, and certificates that support an agent's onboarding record.
+
+This phase records document details, including the file name, file link, document type, signature status, expiry date, review status, and admin notes.
+
+Agents can add and view their own documents. Admins can view documents for any agent and can verify or reject them.
+
+This phase records document links. It does not yet connect to a real file storage service; that can be added later when the portal needs real file uploads.
+
+Document endpoints:
+
+- `POST /agents/{id}/documents`
+- `GET /agents/{id}/documents`
+- `POST /documents/{id}/verify`
+- `POST /documents/{id}/reject`
