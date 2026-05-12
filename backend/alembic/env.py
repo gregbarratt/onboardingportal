@@ -9,6 +9,8 @@ from app.models import (  # noqa: F401
     AgentOnboardingProgress,
     AgentProfile,
     AgentTrainingProgress,
+    AttendanceLog,
+    LiveTrainingSession,
     Membership,
     OnboardingStep,
     Payment,

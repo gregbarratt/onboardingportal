@@ -1,4 +1,5 @@
 from app.models.agent_profile import AgentProfile
+from app.models.live_training import AttendanceLog, LiveTrainingSession
 from app.models.membership import Membership
 from app.models.onboarding import AgentOnboardingProgress, OnboardingStep
 from app.models.payment import Payment
@@ -15,6 +16,8 @@ __all__ = [
     "AgentOnboardingProgress",
     "AgentTrainingProgress",
     "AgentProfile",
+    "AttendanceLog",
+    "LiveTrainingSession",
     "Membership",
     "OnboardingStep",
     "Payment",

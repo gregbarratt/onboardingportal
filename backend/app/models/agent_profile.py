@@ -10,6 +10,7 @@ from app.core.agent_statuses import DEFAULT_AGENT_STATUS
 from app.db.base import Base
 
 if TYPE_CHECKING:
+    from app.models.live_training import AttendanceLog
     from app.models.onboarding import AgentOnboardingProgress
     from app.models.membership import Membership
     from app.models.payment import Payment
@@ -78,6 +79,10 @@ class AgentProfile(Base):
         cascade="all, delete-orphan",
     )
     training_progress: Mapped[list[AgentTrainingProgress]] = relationship(
+        back_populates="agent",
+        cascade="all, delete-orphan",
+    )
+    attendance_logs: Mapped[list[AttendanceLog]] = relationship(
         back_populates="agent",
         cascade="all, delete-orphan",
     )

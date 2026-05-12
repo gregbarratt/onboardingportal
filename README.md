@@ -28,6 +28,14 @@ Each completed phase will be saved as a commit. A commit is like a labelled chec
 
 - Phase 0: Project and GitHub setup
 - Phase 1: Backend foundation
+- Phase 2: Database setup
+- Phase 3: Authentication and user roles
+- Phase 4: Agent profiles
+- Phase 5: Membership and payment tracking
+- Phase 6: Onboarding checklist
+- Phase 7: Training academy
+- Phase 8: Further training
+- Phase 9: Live calls and attendance logging
 
 ## Backend
 
@@ -201,3 +209,22 @@ Further training endpoints:
 
 - `GET /further-training`
 - `GET /agents/{id}/further-training`
+
+## Live Calls and Attendance Logging
+
+Live calls are online sessions such as welcome calls, compliance calls, systems training, supplier training, team meetings, and final sign-off calls.
+
+This phase records the session details and keeps an attendance history for each agent. That means the portal can show who was invited, who attended, who missed a call, who arrived late, and who watched a recording later.
+
+Attendance becomes part of the agent's compliance record because some onboarding calls must be completed before an agent can be approved to trade.
+
+Live call and attendance endpoints:
+
+- `POST /live-sessions`
+- `GET /live-sessions`
+- `GET /live-sessions/{id}`
+- `PUT /live-sessions/{id}`
+- `POST /live-sessions/{id}/assign`
+- `POST /live-sessions/{id}/attendance`
+- `POST /live-sessions/{id}/attendance/bulk`
+- `GET /agents/{id}/attendance`
