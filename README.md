@@ -19,6 +19,7 @@ The frontend is the visible portal in the browser. It is built with React and Ta
 - Secure login with JWT tokens
 - Staff and agent roles
 - Agent profile management
+- Agent CSV import with Stripe ID fields
 - Membership and payment tracking
 - Stripe customer, subscription, and invoice sync support
 - Onboarding checklist with admin approval

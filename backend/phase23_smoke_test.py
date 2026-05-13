@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import os
 import tempfile
+import base64
 from pathlib import Path
 from typing import Any
 
@@ -77,6 +78,7 @@ def run_smoke_tests() -> None:
     test_final_approval(admin_headers, emma)
     test_supplier_and_marketing_access(sarah_headers, agent_headers, emma_headers)
     test_audit_logs(admin_headers, emma)
+    test_agent_csv_import(admin_headers)
     test_admin_dashboard_reports(admin_headers)
 
     print("Phase 23 smoke tests passed.")
@@ -312,6 +314,42 @@ def test_supplier_and_marketing_access(
 def test_audit_logs(headers: dict[str, str], agent: dict[str, Any]) -> None:
     logs = assert_json("agent audit logs", client.get(f"/agents/{agent['id']}/audit-logs", headers=headers), 200)
     assert any(log["action_type"] == "Agent approved to trade" for log in logs), "Approval audit log was missing."
+
+
+def test_agent_csv_import(headers: dict[str, str]) -> None:
+    csv_text = "\n".join(
+        [
+            "agent_id,first_name,last_name,login_email,personal_email,company_email,temporary_password,portal_access_enabled,phone,business_name,status,joining_date,address,postcode,commission_bank_name,commission_account_name,commission_sort_code,commission_account_number,membership_type,membership_status,payment_status,payment_method,setup_fee_amount,monthly_fee_amount,last_payment_date,next_payment_date,failed_payment_count,access_level,stripe_customer_id,stripe_subscription_id,internal_notes",
+            "OTC-90001,CSV,Import,csv.import@example.com,csv.personal@example.com,csv.import@onetravelclub.co.uk,,FALSE,07123 999999,CSV Travel,Payment Pending,2026-01-15,\"1 CSV Street, London\",SW1A 1AA,CSV Bank,CSV Import,11-22-33,87654321,Standard,Payment Pending,Pending,Stripe,99.00,49.00,,2026-02-15,0,Onboarding,cus_csv_import,sub_csv_import,Imported during smoke test",
+        ]
+    )
+    encoded_csv = base64.b64encode(csv_text.encode("utf-8")).decode("ascii")
+    result = assert_json(
+        "agent CSV import",
+        client.post(
+            "/agents/import/csv",
+            headers=headers,
+            json={"file_name": "agents.csv", "file_content_base64": encoded_csv},
+        ),
+        200,
+    )
+    assert result["created"] == 1, "CSV import did not create an agent."
+    assert result["errors"] == [], "CSV import returned row errors."
+    assert result["next_agent_id"] == "OTC-90002", "Next agent ID was not calculated from imported IDs."
+
+    agents = assert_json("agent list after CSV import", client.get("/agents", headers=headers), 200)
+    imported_agent = find_agent(agents, "csv.import@example.com")
+    assert imported_agent["agent_id"] == "OTC-90001", "Imported agent ID was not saved."
+    assert imported_agent["portal_access_enabled"] is False, "Imported portal access flag was not saved."
+    assert imported_agent["company_email"] == "csv.import@onetravelclub.co.uk", "Imported company email was not saved."
+
+    membership = assert_json(
+        "imported membership",
+        client.get(f"/agents/{imported_agent['id']}/membership", headers=headers),
+        200,
+    )
+    assert membership["stripe_customer_id"] == "cus_csv_import", "Imported Stripe customer ID was not saved."
+    assert membership["stripe_subscription_id"] == "sub_csv_import", "Imported Stripe subscription ID was not saved."
 
 
 def test_admin_dashboard_reports(headers: dict[str, str]) -> None:

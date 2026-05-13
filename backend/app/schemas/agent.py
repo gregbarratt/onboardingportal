@@ -182,6 +182,27 @@ class AgentProfileRead(AgentProfileBase):
     model_config = ConfigDict(from_attributes=True)
 
 
+class AgentCsvImportRequest(BaseModel):
+    file_name: str = Field(min_length=1, max_length=255)
+    file_content_base64: str = Field(min_length=1)
+    update_existing: bool = True
+
+
+class AgentCsvImportError(BaseModel):
+    row_number: int
+    identifier: str | None = None
+    message: str
+
+
+class AgentCsvImportResponse(BaseModel):
+    total_rows: int
+    created: int
+    updated: int
+    skipped: int
+    errors: list[AgentCsvImportError]
+    next_agent_id: str
+
+
 class FinalApprovalRequirementRead(BaseModel):
     key: str
     label: str

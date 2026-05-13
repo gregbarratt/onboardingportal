@@ -1,17 +1,25 @@
-import { Search } from "lucide-react";
+import { Download, FileUp, Search, Upload } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
-import { Card, DataTable, ErrorBanner, LoadingState, SelectInput, StatusBadge, TextInput } from "../../components/ui.jsx";
+import { apiClient } from "../../api/client.js";
+import { Card, DataTable, ErrorBanner, LoadingState, PrimaryButton, SelectInput, StatusBadge, TextInput } from "../../components/ui.jsx";
+import { useAuth } from "../../context/AuthContext.jsx";
 import { buildAgentName, useAgents } from "../../hooks/useAdminData.js";
+import { getFriendlyError } from "../../hooks/useAgentPortalData.js";
 import { formatDate } from "../../utils/formatters.js";
 import { agentStatuses } from "./adminConstants.js";
 import AdminPageShell from "./AdminPageShell.jsx";
 
 export default function AdminAgentListPage() {
+  const { token } = useAuth();
   const agents = useAgents();
   const [search, setSearch] = useState("");
   const [status, setStatus] = useState("All");
+  const [importFile, setImportFile] = useState(null);
+  const [importing, setImporting] = useState(false);
+  const [importError, setImportError] = useState("");
+  const [importResult, setImportResult] = useState(null);
 
   const filteredAgents = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -22,6 +30,37 @@ export default function AdminAgentListPage() {
       return matchesStatus && (!query || searchable.includes(query));
     });
   }, [agents.data, search, status]);
+
+  async function handleImport(event) {
+    event.preventDefault();
+    if (!importFile) {
+      setImportError("Choose a CSV file first.");
+      return;
+    }
+
+    setImporting(true);
+    setImportError("");
+    setImportResult(null);
+
+    try {
+      const fileContentBase64 = await readFileAsBase64(importFile);
+      const result = await apiClient.post(
+        "/agents/import/csv",
+        {
+          file_name: importFile.name,
+          file_content_base64: fileContentBase64,
+          update_existing: true,
+        },
+        token,
+      );
+      setImportResult(result);
+      await agents.reload();
+    } catch (err) {
+      setImportError(getFriendlyError(err, "We could not import this CSV file."));
+    } finally {
+      setImporting(false);
+    }
+  }
 
   if (agents.loading) {
     return (
@@ -35,6 +74,64 @@ export default function AdminAgentListPage() {
     <AdminPageShell title="Agent List" description="Search agents, check their status, and open their full admin record.">
       <div className="space-y-6">
         <ErrorBanner message={agents.error} />
+        <ErrorBanner message={importError} />
+
+        <Card
+          title="Import Agents"
+          description="Upload the completed CSV to create or update agent profiles, membership details, and Stripe IDs."
+          actions={
+            <a
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+              href="/templates/agent_import_template.csv"
+              download
+            >
+              <Download className="h-4 w-4" aria-hidden="true" />
+              Download CSV
+            </a>
+          }
+        >
+          <form onSubmit={handleImport} className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
+            <label className="block">
+              <span className="text-sm font-medium text-slate-700">Completed CSV file</span>
+              <input
+                type="file"
+                accept=".csv,text/csv"
+                onChange={(event) => setImportFile(event.target.files?.[0] || null)}
+                className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-sm file:mr-4 file:rounded-md file:border-0 file:bg-sky-50 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-sky-700 hover:file:bg-sky-100"
+              />
+            </label>
+            <PrimaryButton type="submit" icon={importing ? FileUp : Upload} disabled={importing}>
+              {importing ? "Importing..." : "Import agents"}
+            </PrimaryButton>
+          </form>
+
+          {importResult ? (
+            <div className="mt-5 space-y-4">
+              <div className="grid gap-3 sm:grid-cols-5">
+                <ImportStat label="Rows" value={importResult.total_rows} />
+                <ImportStat label="Created" value={importResult.created} />
+                <ImportStat label="Updated" value={importResult.updated} />
+                <ImportStat label="Skipped" value={importResult.skipped} />
+                <ImportStat label="Next ID" value={importResult.next_agent_id} />
+              </div>
+              {importResult.errors?.length ? (
+                <DataTable
+                  rows={importResult.errors}
+                  emptyMessage="No import errors."
+                  columns={[
+                    { key: "row_number", label: "Row" },
+                    { key: "identifier", label: "Agent" },
+                    { key: "message", label: "Issue" },
+                  ]}
+                />
+              ) : (
+                <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-700">
+                  Import completed with no row errors.
+                </div>
+              )}
+            </div>
+          ) : null}
+        </Card>
 
         <Card title="Filters">
           <div className="grid gap-4 md:grid-cols-[1fr_260px]">
@@ -100,4 +197,25 @@ export default function AdminAgentListPage() {
       </div>
     </AdminPageShell>
   );
+}
+
+function ImportStat({ label, value }) {
+  return (
+    <div className="rounded-lg border border-slate-200 bg-slate-50 p-3">
+      <p className="text-xs font-semibold uppercase tracking-wide text-slate-500">{label}</p>
+      <p className="mt-1 text-lg font-semibold text-slate-950">{value ?? 0}</p>
+    </div>
+  );
+}
+
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || "");
+      resolve(result.split(",", 2)[1] || result);
+    };
+    reader.onerror = () => reject(new Error("The file could not be read."));
+    reader.readAsDataURL(file);
+  });
 }

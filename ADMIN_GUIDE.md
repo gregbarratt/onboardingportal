@@ -50,6 +50,10 @@ Use it to find an agent and open their full record.
 
 Admins can see all agents. Agents can only see their own profile.
 
+The Agent List also includes a CSV import tool. Admins can download the CSV template, fill in agent profile details, optional Stripe customer IDs, optional Stripe subscription IDs, and membership status, then upload the file to create or update agents in bulk.
+
+The import uses `agent_id` first and login email second to find existing agents. If `agent_id` is blank, the portal allocates the next available One Travel Club ID.
+
 ## Agent Detail
 
 The Agent Detail page brings an agent's key records together.

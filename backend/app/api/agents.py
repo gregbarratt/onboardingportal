@@ -10,11 +10,15 @@ from app.db.session import get_db
 from app.models.agent_profile import AgentProfile
 from app.models.user import User
 from app.schemas.agent import (
+    AgentCsvImportRequest,
+    AgentCsvImportResponse,
     AgentProfileCreate,
     AgentProfileRead,
     AgentProfileUpdate,
     FinalApprovalStatusRead,
 )
+from app.services.agent_ids import generate_next_agent_id
+from app.services.agent_import import import_agents_from_csv
 from app.services.final_approval import approve_agent_to_trade, build_final_approval_status
 
 
@@ -23,10 +27,6 @@ router = APIRouter(prefix="/agents", tags=["Agents"])
 
 def is_admin_user(user: User) -> bool:
     return user.role.name in ADMIN_ROLE_NAMES
-
-
-def generate_agent_id(user_id: int) -> str:
-    return f"OTC-{user_id:05d}"
 
 
 def get_agent_or_404(db: Session, agent_profile_id: int) -> AgentProfile:
@@ -89,7 +89,7 @@ def create_agent_profile(
 
     agent_profile = AgentProfile(
         user_id=target_user_id,
-        agent_id=request.agent_id or generate_agent_id(target_user_id),
+        agent_id=request.agent_id or generate_next_agent_id(db),
         first_name=request.first_name,
         last_name=request.last_name,
         email=request.email,
@@ -132,6 +132,21 @@ def list_agent_profiles(
 
     own_profile = get_existing_profile_for_user(db, current_user.id)
     return [own_profile] if own_profile is not None else []
+
+
+@router.post("/import/csv", response_model=AgentCsvImportResponse)
+def import_agent_csv(
+    request: AgentCsvImportRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> dict:
+    if not is_admin_user(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can import agents.",
+        )
+
+    return import_agents_from_csv(db, request, current_user=current_user)
 
 
 @router.get("/{agent_profile_id}", response_model=AgentProfileRead)
