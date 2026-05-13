@@ -178,7 +178,7 @@ This page stores important records, such as:
 
 Admins can verify or reject documents.
 
-This version stores document links. A real file upload and storage service can be added later.
+This version can upload files into the local portal storage and can also record an existing document link. For a live online launch, uploaded files should be moved to proper cloud file storage.
 
 ## Compliance Centre
 

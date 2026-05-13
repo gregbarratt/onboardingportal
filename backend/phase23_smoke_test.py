@@ -12,6 +12,7 @@ def configure_temporary_database() -> tempfile.TemporaryDirectory[str]:
     os.environ["DATABASE_URL"] = f"sqlite:///{db_path.as_posix()}"
     os.environ["JWT_SECRET_KEY"] = "phase23-smoke-test-only"
     os.environ["FRONTEND_URL"] = "http://127.0.0.1:5173"
+    os.environ["UPLOAD_DIR"] = str(Path(temp_dir.name) / "uploads")
     return temp_dir
 
 
@@ -172,6 +173,27 @@ def test_documents(admin_headers: dict[str, str], agent: dict[str, Any], agent_h
         201,
     )
     assert document["status"] == "Awaiting Review", "Uploaded document was not awaiting review."
+
+    uploaded_document = assert_json(
+        "document file upload",
+        client.post(
+            f"/agents/{agent['id']}/documents/upload",
+            headers=agent_headers,
+            json={
+                "document_type": "Contractor Agreement",
+                "file_name": "contractor-agreement.pdf",
+                "file_content_base64": "JVBERi0xLjQgdGVzdCBjb250cmFjdA==",
+                "content_type": "application/pdf",
+                "requires_signature": True,
+                "signed": False,
+                "notes": "Temporary uploaded contract test.",
+            },
+        ),
+        201,
+    )
+    assert uploaded_document["file_name"] == "contractor-agreement.pdf", "Uploaded file name was not stored."
+    assert "/uploaded-files/documents/" in uploaded_document["file_url"], "Uploaded file URL was not created."
+    assert_status("uploaded document file opens", client.get(uploaded_document["file_url"]), 200)
 
     verified = assert_json("document verify", client.post(f"/documents/{document['id']}/verify", headers=admin_headers), 200)
     assert verified["status"] == "Verified", "Document verification failed."

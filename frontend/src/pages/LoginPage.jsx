@@ -51,7 +51,8 @@ export default function LoginPage() {
             <span className="mb-1.5 block text-sm font-semibold text-slate-700">Email</span>
             <input
               className="focus-ring w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-ink"
-              type="email"
+              type="text"
+              inputMode="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               autoComplete="email"

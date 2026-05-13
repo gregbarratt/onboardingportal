@@ -286,7 +286,7 @@ Before a real launch:
 - Replace all demo passwords.
 - Use a real PostgreSQL database.
 - Review security settings.
-- Add real file storage for uploaded documents.
+- Move uploaded documents from local storage to proper cloud file storage.
 - Connect Stripe using real Stripe keys.
 - Check compliance wording with the business.
 - Run the smoke test and a manual user test.

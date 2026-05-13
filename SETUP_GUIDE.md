@@ -115,6 +115,14 @@ This creates:
 - Audit logs
 - Reports data
 
+Uploaded document files are stored locally in:
+
+```text
+C:\Users\gregb\OneDrive\Documents\New project 2\Travel Agent Onboarding Hub\backend\uploads
+```
+
+The uploads folder is kept out of GitHub so private documents are not accidentally published.
+
 ## Step 6: Start The Backend
 
 Open PowerShell and run:

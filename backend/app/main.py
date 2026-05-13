@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.staticfiles import StaticFiles
 
 from app.api.audit import router as audit_router
 from app.api.agents import router as agents_router
@@ -31,6 +32,9 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+settings.upload_dir.mkdir(parents=True, exist_ok=True)
+app.mount("/uploaded-files", StaticFiles(directory=settings.upload_dir), name="uploaded_files")
 
 app.include_router(auth_router)
 app.include_router(agents_router)

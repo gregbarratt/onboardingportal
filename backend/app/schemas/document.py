@@ -48,6 +48,39 @@ class DocumentCreate(BaseModel):
         return clean_optional_text(value)
 
 
+class DocumentFileUploadCreate(BaseModel):
+    document_type: str
+    file_name: str = Field(min_length=1, max_length=255)
+    file_content_base64: str = Field(min_length=1)
+    content_type: str | None = None
+    requires_signature: bool = False
+    signed: bool = False
+    signed_date: date_type | None = None
+    expiry_date: date_type | None = None
+    notes: str | None = None
+
+    @field_validator("document_type")
+    @classmethod
+    def document_type_must_be_allowed(cls, value: str) -> str:
+        cleaned = clean_required_text(value)
+        if cleaned not in DOCUMENT_TYPES:
+            raise ValueError("Enter a valid document type.")
+        return cleaned
+
+    @field_validator("file_name", "file_content_base64")
+    @classmethod
+    def required_text_must_not_be_blank(cls, value: str) -> str:
+        cleaned = clean_required_text(value)
+        if not cleaned:
+            raise ValueError("This field is required.")
+        return cleaned
+
+    @field_validator("content_type", "notes")
+    @classmethod
+    def optional_text_can_be_blank(cls, value: str | None) -> str | None:
+        return clean_optional_text(value)
+
+
 class DocumentReviewRequest(BaseModel):
     notes: str | None = None
 

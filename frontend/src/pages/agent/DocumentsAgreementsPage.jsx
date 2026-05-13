@@ -13,7 +13,7 @@ import {
   TextArea,
   TextInput,
 } from "../../components/ui.jsx";
-import { apiClient } from "../../api/client.js";
+import { API_BASE_URL, apiClient } from "../../api/client.js";
 import { useAuth } from "../../context/AuthContext.jsx";
 import { getFriendlyError, useAgentResource } from "../../hooks/useAgentPortalData.js";
 import { formatDate } from "../../utils/formatters.js";
@@ -34,6 +34,7 @@ const documentTypes = [
 
 const blankDocument = {
   document_type: "ID Document",
+  file: null,
   file_name: "",
   file_url: "",
   requires_signature: false,
@@ -42,6 +43,23 @@ const blankDocument = {
   expiry_date: "",
   notes: "",
 };
+
+function documentUrl(fileUrl) {
+  if (!fileUrl) return "#";
+  return fileUrl.startsWith("/") ? `${API_BASE_URL}${fileUrl}` : fileUrl;
+}
+
+function fileToBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || "");
+      resolve(result.includes(",") ? result.split(",", 2)[1] : result);
+    };
+    reader.onerror = () => reject(new Error("The selected file could not be read."));
+    reader.readAsDataURL(file);
+  });
+}
 
 export default function DocumentsAgreementsPage() {
   return (
@@ -63,6 +81,7 @@ function DocumentsContent({ profile }) {
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
   const [saveMessage, setSaveMessage] = useState("");
+  const [fileInputKey, setFileInputKey] = useState(0);
 
   async function handleSubmit(event) {
     event.preventDefault();
@@ -71,18 +90,48 @@ function DocumentsContent({ profile }) {
     setSaveMessage("");
 
     try {
-      await apiClient.post(
-        `/agents/${profile.id}/documents`,
-        {
-          ...form,
-          signed_date: form.signed_date || null,
-          expiry_date: form.expiry_date || null,
-        },
-        token,
-      );
+      const hasUploadedFile = Boolean(form.file);
+      const hasFileLink = Boolean(form.file_url.trim());
+
+      if (!hasUploadedFile && !hasFileLink) {
+        throw new Error("Please upload a file or add an existing file link.");
+      }
+
+      if (hasUploadedFile) {
+        const fileContentBase64 = await fileToBase64(form.file);
+
+        await apiClient.post(
+          `/agents/${profile.id}/documents/upload`,
+          {
+            document_type: form.document_type,
+            file_name: form.file.name,
+            file_content_base64: fileContentBase64,
+            content_type: form.file.type,
+            requires_signature: form.requires_signature,
+            signed: form.signed,
+            signed_date: form.signed_date || null,
+            expiry_date: form.expiry_date || null,
+            notes: form.notes,
+          },
+          token,
+        );
+      } else {
+        const { file, ...documentPayload } = form;
+        await apiClient.post(
+          `/agents/${profile.id}/documents`,
+          {
+            ...documentPayload,
+            signed_date: form.signed_date || null,
+            expiry_date: form.expiry_date || null,
+          },
+          token,
+        );
+      }
+
       setForm(blankDocument);
+      setFileInputKey((current) => current + 1);
       await documents.reload();
-      setSaveMessage("Document record added.");
+      setSaveMessage(hasUploadedFile ? "Document uploaded for admin review." : "Document record added.");
     } catch (err) {
       setSaveError(getFriendlyError(err, "We could not add this document."));
     } finally {
@@ -105,7 +154,7 @@ function DocumentsContent({ profile }) {
         </div>
       ) : null}
 
-      <Card title="Add Document" description="This records a document link. Real file upload storage can be added in a later deployment step.">
+      <Card title="Add Document" description="Contracts, ID, proof of address, policies, and certificates.">
         <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
           <FormField label="Document type">
             <SelectInput value={form.document_type} onChange={(event) => setForm((current) => ({ ...current, document_type: event.target.value }))}>
@@ -116,11 +165,32 @@ function DocumentsContent({ profile }) {
               ))}
             </SelectInput>
           </FormField>
-          <FormField label="File name">
-            <TextInput required value={form.file_name} onChange={(event) => setForm((current) => ({ ...current, file_name: event.target.value }))} />
+          <FormField label="Upload file" help="PDF, Word, JPG or PNG. Maximum 10MB.">
+            <input
+              key={fileInputKey}
+              type="file"
+              accept=".pdf,.doc,.docx,.jpg,.jpeg,.png"
+              className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-sm file:mr-3 file:rounded-md file:border-0 file:bg-sky-50 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-sky-700"
+              onChange={(event) => setForm((current) => ({ ...current, file: event.target.files?.[0] || null }))}
+            />
           </FormField>
-          <FormField label="File link">
-            <TextInput required value={form.file_url} onChange={(event) => setForm((current) => ({ ...current, file_url: event.target.value }))} placeholder="https://..." />
+          <FormField label="File name">
+            <TextInput
+              required={!form.file}
+              value={form.file_name}
+              onChange={(event) => setForm((current) => ({ ...current, file_name: event.target.value }))}
+              placeholder={form.file ? form.file.name : ""}
+              disabled={Boolean(form.file)}
+            />
+          </FormField>
+          <FormField label="Existing file link">
+            <TextInput
+              required={!form.file}
+              value={form.file_url}
+              onChange={(event) => setForm((current) => ({ ...current, file_url: event.target.value }))}
+              placeholder="https://..."
+              disabled={Boolean(form.file)}
+            />
           </FormField>
           <FormField label="Expiry date">
             <TextInput type="date" value={form.expiry_date} onChange={(event) => setForm((current) => ({ ...current, expiry_date: event.target.value }))} />
@@ -165,7 +235,7 @@ function DocumentsContent({ profile }) {
               key: "file_name",
               label: "File",
               render: (row) => (
-                <a className="font-semibold text-sky-700 hover:text-sky-900" href={row.file_url} target="_blank" rel="noreferrer">
+                <a className="font-semibold text-sky-700 hover:text-sky-900" href={documentUrl(row.file_url)} target="_blank" rel="noreferrer">
                   {row.file_name}
                 </a>
               ),

@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 60
     frontend_url: str = "http://localhost:5173"
+    upload_dir: Path = BACKEND_DIR / "uploads"
+    max_upload_size_mb: int = 10
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
 
@@ -42,6 +44,10 @@ class Settings(BaseSettings):
             "http://localhost:5173",
         }
         return sorted(origin for origin in origins if origin)
+
+    @property
+    def max_upload_size_bytes(self) -> int:
+        return self.max_upload_size_mb * 1024 * 1024
 
 
 @lru_cache

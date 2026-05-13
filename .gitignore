@@ -10,6 +10,8 @@ env/
 # FastAPI / local backend files
 *.db
 *.sqlite3
+backend/uploads/*
+!backend/uploads/.gitkeep
 
 # Node / React
 node_modules/

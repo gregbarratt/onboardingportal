@@ -2,12 +2,17 @@ import { CheckCircle2, XCircle } from "lucide-react";
 import { useState } from "react";
 
 import { Card, DataTable, ErrorBanner, LoadingState, PrimaryButton, StatusBadge } from "../../components/ui.jsx";
-import { apiClient } from "../../api/client.js";
+import { API_BASE_URL, apiClient } from "../../api/client.js";
 import { useAuth } from "../../context/AuthContext.jsx";
 import { buildAgentName, useAdminAgentRecords, useAgents } from "../../hooks/useAdminData.js";
 import { getFriendlyError } from "../../hooks/useAgentPortalData.js";
 import { formatDate } from "../../utils/formatters.js";
 import AdminPageShell from "./AdminPageShell.jsx";
+
+function documentUrl(fileUrl) {
+  if (!fileUrl) return "#";
+  return fileUrl.startsWith("/") ? `${API_BASE_URL}${fileUrl}` : fileUrl;
+}
 
 export default function AdminDocumentReviewPage() {
   const { token } = useAuth();
@@ -56,7 +61,7 @@ export default function AdminDocumentReviewPage() {
             columns={[
               { key: "agent", label: "Agent", render: (row) => buildAgentName(row.agent) },
               { key: "document_type", label: "Type" },
-              { key: "file_name", label: "File", render: (row) => <a className="font-semibold text-sky-700 hover:text-sky-900" href={row.file_url} target="_blank" rel="noreferrer">{row.file_name}</a> },
+              { key: "file_name", label: "File", render: (row) => <a className="font-semibold text-sky-700 hover:text-sky-900" href={documentUrl(row.file_url)} target="_blank" rel="noreferrer">{row.file_name}</a> },
               { key: "status", label: "Status", render: (row) => <StatusBadge status={row.status} /> },
               { key: "uploaded_date", label: "Uploaded", render: (row) => formatDate(row.uploaded_date) },
               {
@@ -85,7 +90,7 @@ export default function AdminDocumentReviewPage() {
             columns={[
               { key: "agent", label: "Agent", render: (row) => buildAgentName(row.agent) },
               { key: "document_type", label: "Type" },
-              { key: "file_name", label: "File" },
+              { key: "file_name", label: "File", render: (row) => <a className="font-semibold text-sky-700 hover:text-sky-900" href={documentUrl(row.file_url)} target="_blank" rel="noreferrer">{row.file_name}</a> },
               { key: "status", label: "Status", render: (row) => <StatusBadge status={row.status} /> },
               { key: "expiry_date", label: "Expiry", render: (row) => formatDate(row.expiry_date) },
             ]}

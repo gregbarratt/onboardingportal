@@ -194,6 +194,8 @@ Important document types include:
 - Compliance Policy
 - Training Certificate
 
+Admins can open the uploaded file from Document Review, then verify or reject it.
+
 ## Compliance Dashboard
 
 The Compliance Dashboard helps staff track compliance risk.
