@@ -48,6 +48,7 @@ Each completed phase will be saved as a commit. A commit is like a labelled chec
 - Phase 19: Final approval workflow
 - Phase 20: Seed data and demo logins
 - Phase 21: Admin reports
+- Phase 22: Stripe preparation
 
 ## Backend
 
@@ -487,3 +488,32 @@ Admins can open the reports from the admin sidebar or from the admin dashboard s
 Report endpoint:
 
 - `GET /admin/reports`
+
+## Stripe Preparation
+
+Stripe is the payment provider that can later take setup fees and recurring membership payments.
+
+Phase 22 prepares the project for Stripe, but it does not charge real money. The current Stripe code is still in safe placeholder mode.
+
+Prepared Stripe areas:
+
+- Customer creation placeholder
+- Subscription creation placeholder
+- Subscription cancellation placeholder
+- Payment success handler
+- Payment failure handler
+- Subscription cancelled handler
+- Webhook route placeholder
+
+Stripe environment settings:
+
+```text
+STRIPE_SECRET_KEY=""
+STRIPE_WEBHOOK_SECRET=""
+```
+
+These values should stay blank until real Stripe keys are available. When real Stripe keys are added later, the webhook endpoint will be:
+
+```text
+POST /stripe/webhook
+```

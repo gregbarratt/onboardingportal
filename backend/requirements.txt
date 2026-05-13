@@ -5,4 +5,5 @@ pydantic-settings
 psycopg[binary]
 python-dotenv
 sqlalchemy
+stripe
 uvicorn[standard]
