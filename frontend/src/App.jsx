@@ -28,6 +28,7 @@ import AdminLiveSessionDetailPage from "./pages/admin/AdminLiveSessionDetailPage
 import AdminLiveSessionsPage from "./pages/admin/AdminLiveSessionsPage.jsx";
 import AdminMembershipPaymentsPage from "./pages/admin/AdminMembershipPaymentsPage.jsx";
 import AdminOnboardingManagementPage from "./pages/admin/AdminOnboardingManagementPage.jsx";
+import AdminReportsPage from "./pages/admin/AdminReportsPage.jsx";
 import AdminSettingsPage from "./pages/admin/AdminSettingsPage.jsx";
 import AdminTrainingModuleBuilderPage from "./pages/admin/AdminTrainingModuleBuilderPage.jsx";
 import AdminTrainingModulesPage from "./pages/admin/AdminTrainingModulesPage.jsx";
@@ -76,6 +77,7 @@ export default function App() {
           <Route path="/admin/compliance" element={adminPage(<AdminComplianceDashboardPage />)} />
           <Route path="/admin/certificates" element={adminPage(<AdminCertificatesPage />)} />
           <Route path="/admin/audit-logs" element={adminPage(<AdminAuditLogsPage />)} />
+          <Route path="/admin/reports" element={adminPage(<AdminReportsPage />)} />
           <Route path="/admin/settings" element={adminPage(<AdminSettingsPage />)} />
         </Route>
       </Route>

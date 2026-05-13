@@ -47,6 +47,7 @@ Each completed phase will be saved as a commit. A commit is like a labelled chec
 - Phase 18: Admin frontend pages
 - Phase 19: Final approval workflow
 - Phase 20: Seed data and demo logins
+- Phase 21: Admin reports
 
 ## Backend
 
@@ -465,3 +466,24 @@ Agent demo logins:
 - `emma.clarke@example.com` - Awaiting Final Approval
 - `david.smith@example.com` - Approved to Trade
 - `rachel.brown@example.com` - Suspended for failed payment
+
+## Admin Reports
+
+The Reports page gives admins simple tables for common operational checks.
+
+It includes:
+
+- Agents by status
+- Payment status report
+- Training completion report
+- Overdue training report
+- Attendance report
+- Compliance expiry report
+- Documents awaiting review
+- Final approval queue
+
+Admins can open the reports from the admin sidebar or from the admin dashboard shortcut.
+
+Report endpoint:
+
+- `GET /admin/reports`

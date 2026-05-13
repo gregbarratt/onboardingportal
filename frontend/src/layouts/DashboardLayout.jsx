@@ -1,5 +1,6 @@
 import {
   Award,
+  BarChart3,
   BookOpen,
   BriefcaseBusiness,
   CalendarCheck,
@@ -50,6 +51,7 @@ const adminNavItems = [
   { label: "Compliance Admin", to: "/admin/compliance", icon: ShieldCheck },
   { label: "Certificates Admin", to: "/admin/certificates", icon: Award },
   { label: "Audit Logs", to: "/admin/audit-logs", icon: ClipboardList },
+  { label: "Reports", to: "/admin/reports", icon: BarChart3 },
   { label: "Settings", to: "/admin/settings", icon: ClipboardList },
 ];
 

@@ -91,6 +91,7 @@ export default function AdminDashboardPage() {
               <Shortcut to="/admin/documents" label="Document review" detail="Verify or reject documents" />
               <Shortcut to="/admin/training" label="Training modules" detail="Publish and edit training" />
               <Shortcut to="/admin/compliance" label="Compliance dashboard" detail="Policy and document issues" />
+              <Shortcut to="/admin/reports" label="Reports" detail="Review admin report tables" />
             </div>
           </Card>
         </div>
