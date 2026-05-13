@@ -3,7 +3,19 @@ import { Navigate, Route, Routes } from "react-router-dom";
 import ProtectedRoute from "./components/ProtectedRoute.jsx";
 import RoleGuard from "./components/RoleGuard.jsx";
 import DashboardLayout from "./layouts/DashboardLayout.jsx";
-import DashboardHome from "./pages/DashboardHome.jsx";
+import AgentDashboardPage from "./pages/agent/AgentDashboardPage.jsx";
+import CertificatesPage from "./pages/agent/CertificatesPage.jsx";
+import ComplianceCentrePage from "./pages/agent/ComplianceCentrePage.jsx";
+import DocumentsAgreementsPage from "./pages/agent/DocumentsAgreementsPage.jsx";
+import FurtherTrainingPage from "./pages/agent/FurtherTrainingPage.jsx";
+import LiveCallsPage from "./pages/agent/LiveCallsPage.jsx";
+import MarketingHubPage from "./pages/agent/MarketingHubPage.jsx";
+import MembershipPaymentsPage from "./pages/agent/MembershipPaymentsPage.jsx";
+import OnboardingChecklistPage from "./pages/agent/OnboardingChecklistPage.jsx";
+import ProfilePage from "./pages/agent/ProfilePage.jsx";
+import SupplierAccessPage from "./pages/agent/SupplierAccessPage.jsx";
+import TrainingAcademyPage from "./pages/agent/TrainingAcademyPage.jsx";
+import TrainingModuleDetailPage from "./pages/agent/TrainingModuleDetailPage.jsx";
 import LoginPage from "./pages/LoginPage.jsx";
 import NotFoundPage from "./pages/NotFoundPage.jsx";
 import PlaceholderPage from "./pages/PlaceholderPage.jsx";
@@ -18,18 +30,19 @@ export default function App() {
 
       <Route element={<ProtectedRoute />}>
         <Route element={<DashboardLayout />}>
-          <Route path="/dashboard" element={<DashboardHome />} />
-          <Route path="/profile" element={<PlaceholderPage title="My Profile" />} />
-          <Route path="/membership" element={<PlaceholderPage title="Membership & Payments" />} />
-          <Route path="/onboarding" element={<PlaceholderPage title="Onboarding Checklist" />} />
-          <Route path="/training" element={<PlaceholderPage title="Training Academy" />} />
-          <Route path="/further-training" element={<PlaceholderPage title="Further Training" />} />
-          <Route path="/live-calls" element={<PlaceholderPage title="Live Training & Calls" />} />
-          <Route path="/documents" element={<PlaceholderPage title="Documents & Agreements" />} />
-          <Route path="/certificates" element={<PlaceholderPage title="Certificates" />} />
-          <Route path="/supplier-access" element={<PlaceholderPage title="Supplier Access" />} />
-          <Route path="/marketing" element={<PlaceholderPage title="Marketing Hub" />} />
-          <Route path="/compliance" element={<PlaceholderPage title="Compliance Centre" />} />
+          <Route path="/dashboard" element={<AgentDashboardPage />} />
+          <Route path="/profile" element={<ProfilePage />} />
+          <Route path="/membership" element={<MembershipPaymentsPage />} />
+          <Route path="/onboarding" element={<OnboardingChecklistPage />} />
+          <Route path="/training" element={<TrainingAcademyPage />} />
+          <Route path="/training/:moduleId" element={<TrainingModuleDetailPage />} />
+          <Route path="/further-training" element={<FurtherTrainingPage />} />
+          <Route path="/live-calls" element={<LiveCallsPage />} />
+          <Route path="/documents" element={<DocumentsAgreementsPage />} />
+          <Route path="/certificates" element={<CertificatesPage />} />
+          <Route path="/supplier-access" element={<SupplierAccessPage />} />
+          <Route path="/marketing" element={<MarketingHubPage />} />
+          <Route path="/compliance" element={<ComplianceCentrePage />} />
           <Route
             path="/admin"
             element={

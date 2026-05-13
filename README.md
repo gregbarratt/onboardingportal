@@ -43,6 +43,7 @@ Each completed phase will be saved as a commit. A commit is like a labelled chec
 - Phase 14: Audit logs and admin notes
 - Phase 15: Notifications
 - Phase 16: Frontend setup
+- Phase 17: Agent frontend pages
 
 ## Backend
 
@@ -397,3 +398,11 @@ Frontend commands:
 - `npm install`
 - `npm run dev`
 - `npm run build`
+
+## Agent Frontend Pages
+
+The agent side of the portal now has real pages instead of placeholders.
+
+Agents can use the frontend to view their dashboard, profile, membership and payments, onboarding checklist, training academy, further training, live calls, documents, certificates, supplier access, marketing hub, and compliance centre.
+
+Some sections are deliberately locked by backend rules. For example, supplier access only opens after final approval, and marketing resources only open after the social media and advertising policy has been accepted.
