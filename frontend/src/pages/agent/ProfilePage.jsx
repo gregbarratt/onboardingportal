@@ -20,6 +20,8 @@ const blankProfile = {
   first_name: "",
   last_name: "",
   email: "",
+  personal_email: "",
+  company_email: "",
   phone: "",
   business_name: "",
   joining_date: "",
@@ -45,6 +47,8 @@ export default function ProfilePage() {
         first_name: profile.first_name || "",
         last_name: profile.last_name || "",
         email: profile.email || "",
+        personal_email: profile.personal_email || "",
+        company_email: profile.company_email || "",
         phone: profile.phone || "",
         business_name: profile.business_name || "",
         joining_date: profile.joining_date || "",
@@ -143,6 +147,12 @@ export default function ProfilePage() {
             </FormField>
             <FormField label="Email address">
               <TextInput required type="email" value={values.email} onChange={(event) => updateValue("email", event.target.value)} />
+            </FormField>
+            <FormField label="Personal email">
+              <TextInput type="email" value={values.personal_email} onChange={(event) => updateValue("personal_email", event.target.value)} />
+            </FormField>
+            <FormField label="One Travel Club email">
+              <TextInput type="email" value={values.company_email} onChange={(event) => updateValue("company_email", event.target.value)} />
             </FormField>
             <FormField label="Phone number">
               <TextInput value={values.phone} onChange={(event) => updateValue("phone", event.target.value)} />

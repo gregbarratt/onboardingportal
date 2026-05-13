@@ -59,10 +59,11 @@ This page shows:
 - Last payment date
 - Next payment date
 - Payment history
+- Stripe invoice links, when Stripe is connected
 
-This version tracks payments but does not charge real money. Stripe is prepared for later.
+When Stripe is connected, paid and failed invoices can appear here with invoice links and PDF links.
 
-Agents can view membership and payment records, but they cannot create or edit payment records. Payment records are controlled by admin now and can be connected to Stripe later.
+Agents can view membership and payment records, but they cannot create or edit payment records. Payment records are controlled by admin and can be updated from Stripe.
 
 ## Onboarding Checklist
 

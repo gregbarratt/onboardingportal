@@ -20,6 +20,8 @@ class AgentProfileBase(BaseModel):
     first_name: str = Field(min_length=1, max_length=100)
     last_name: str = Field(min_length=1, max_length=100)
     email: str = Field(min_length=3, max_length=255)
+    personal_email: str | None = Field(default=None, min_length=3, max_length=255)
+    company_email: str | None = Field(default=None, min_length=3, max_length=255)
     phone: str | None = Field(default=None, max_length=50)
     business_name: str | None = Field(default=None, max_length=255)
     joining_date: date | None = None
@@ -46,6 +48,17 @@ class AgentProfileBase(BaseModel):
             raise ValueError("Enter a valid email address.")
         return cleaned
 
+    @field_validator("personal_email", "company_email")
+    @classmethod
+    def optional_email_must_look_valid(cls, value: str | None) -> str | None:
+        cleaned = clean_optional_text(value)
+        if cleaned is None:
+            return None
+        cleaned = cleaned.lower()
+        if "@" not in cleaned or "." not in cleaned.rsplit("@", 1)[-1]:
+            raise ValueError("Enter a valid email address.")
+        return cleaned
+
     @field_validator(
         "phone",
         "business_name",
@@ -65,6 +78,7 @@ class AgentProfileCreate(AgentProfileBase):
     user_id: int | None = None
     agent_id: str | None = Field(default=None, max_length=50)
     status: str | None = None
+    portal_access_enabled: bool | None = None
 
     @field_validator("agent_id")
     @classmethod
@@ -86,6 +100,9 @@ class AgentProfileUpdate(BaseModel):
     first_name: str | None = Field(default=None, min_length=1, max_length=100)
     last_name: str | None = Field(default=None, min_length=1, max_length=100)
     email: str | None = Field(default=None, min_length=3, max_length=255)
+    personal_email: str | None = Field(default=None, min_length=3, max_length=255)
+    company_email: str | None = Field(default=None, min_length=3, max_length=255)
+    portal_access_enabled: bool | None = None
     phone: str | None = Field(default=None, max_length=50)
     business_name: str | None = Field(default=None, max_length=255)
     status: str | None = None
@@ -113,6 +130,17 @@ class AgentProfileUpdate(BaseModel):
         if value is None:
             return None
         cleaned = value.strip().lower()
+        if "@" not in cleaned or "." not in cleaned.rsplit("@", 1)[-1]:
+            raise ValueError("Enter a valid email address.")
+        return cleaned
+
+    @field_validator("personal_email", "company_email")
+    @classmethod
+    def optional_email_must_look_valid(cls, value: str | None) -> str | None:
+        cleaned = clean_optional_text(value)
+        if cleaned is None:
+            return None
+        cleaned = cleaned.lower()
         if "@" not in cleaned or "." not in cleaned.rsplit("@", 1)[-1]:
             raise ValueError("Enter a valid email address.")
         return cleaned
@@ -147,6 +175,7 @@ class AgentProfileRead(AgentProfileBase):
     user_id: int
     agent_id: str
     status: str
+    portal_access_enabled: bool
     created_at: datetime
     updated_at: datetime
 

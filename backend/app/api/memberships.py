@@ -22,8 +22,16 @@ from app.schemas.membership import (
     MembershipUpdate,
     PaymentCreate,
     PaymentRead,
+    StripeInvoiceRead,
+    StripeInvoiceSyncResponse,
 )
 from app.services.audit import create_audit_log
+from app.services.stripe import (
+    StripeIntegrationError,
+    create_stripe_customer,
+    list_stripe_invoices,
+    sync_stripe_invoices_for_membership,
+)
 
 
 router = APIRouter(prefix="/agents", tags=["Memberships and Payments"])
@@ -40,6 +48,24 @@ def get_membership_or_404(db: Session, agent_profile_id: int) -> Membership:
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Membership record not found for this agent.",
         )
+    return membership
+
+
+def get_or_create_membership_for_agent(db: Session, agent_profile: AgentProfile) -> Membership:
+    membership = get_membership_for_agent(db, agent_profile.id)
+    if membership is not None:
+        return membership
+
+    membership = Membership(
+        agent_id=agent_profile.id,
+        setup_fee_amount=Decimal("0.00"),
+        monthly_fee_amount=Decimal("0.00"),
+        membership_status=DEFAULT_MEMBERSHIP_STATUS,
+        payment_status=DEFAULT_MEMBERSHIP_PAYMENT_STATUS,
+        failed_payment_count=0,
+    )
+    db.add(membership)
+    db.flush()
     return membership
 
 
@@ -124,15 +150,7 @@ def update_agent_membership(
 
     membership = get_membership_for_agent(db, agent_profile.id)
     if membership is None:
-        membership = Membership(
-            agent_id=agent_profile.id,
-            setup_fee_amount=Decimal("0.00"),
-            monthly_fee_amount=Decimal("0.00"),
-            membership_status=DEFAULT_MEMBERSHIP_STATUS,
-            payment_status=DEFAULT_MEMBERSHIP_PAYMENT_STATUS,
-            failed_payment_count=0,
-        )
-        db.add(membership)
+        membership = get_or_create_membership_for_agent(db, agent_profile)
 
     previous_membership_status = membership.membership_status
     previous_payment_status = membership.payment_status
@@ -163,6 +181,111 @@ def update_agent_membership(
 
     db.refresh(membership)
     return membership
+
+
+@router.post("/{agent_profile_id}/stripe/customer", response_model=MembershipRead)
+def create_or_link_stripe_customer(
+    agent_profile_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> Membership:
+    if not is_admin_user(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can connect an agent to Stripe.",
+        )
+
+    agent_profile = get_agent_or_404(db, agent_profile_id)
+    membership = get_or_create_membership_for_agent(db, agent_profile)
+    if membership.stripe_customer_id:
+        return membership
+
+    try:
+        customer = create_stripe_customer(agent_profile)
+    except StripeIntegrationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    stripe_customer_id = customer.get("id")
+    if not stripe_customer_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Stripe did not return a customer ID.",
+        )
+
+    membership.stripe_customer_id = stripe_customer_id
+    membership.payment_method = membership.payment_method or "Stripe"
+    create_audit_log(
+        db,
+        action_type="Payment setup completed",
+        description=f"Stripe customer created for {agent_profile.first_name} {agent_profile.last_name}.",
+        previous_value=None,
+        new_value=value_as_text(membership.stripe_customer_id),
+        created_by=current_user.id,
+        user_id=agent_profile.user_id,
+        agent_id=agent_profile.id,
+    )
+
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Stripe customer could not be saved because it conflicts with an existing record.",
+        ) from None
+
+    db.refresh(membership)
+    return membership
+
+
+@router.get("/{agent_profile_id}/stripe/invoices", response_model=list[StripeInvoiceRead])
+def list_agent_stripe_invoices(
+    agent_profile_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> list[dict]:
+    agent_profile = get_agent_or_404(db, agent_profile_id)
+    check_agent_access(agent_profile, current_user)
+    membership = get_membership_or_404(db, agent_profile.id)
+    if not membership.stripe_customer_id:
+        return []
+
+    try:
+        return list_stripe_invoices(membership.stripe_customer_id)
+    except StripeIntegrationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.post("/{agent_profile_id}/stripe/invoices/sync", response_model=StripeInvoiceSyncResponse)
+def sync_agent_stripe_invoices(
+    agent_profile_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> dict:
+    if not is_admin_user(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can sync Stripe invoices.",
+        )
+
+    agent_profile = get_agent_or_404(db, agent_profile_id)
+    membership = get_membership_or_404(db, agent_profile.id)
+    if not membership.stripe_customer_id:
+        return {"synced_count": 0, "invoices": []}
+
+    try:
+        invoices = sync_stripe_invoices_for_membership(
+            db,
+            agent_profile=agent_profile,
+            membership=membership,
+            current_user=current_user,
+        )
+    except StripeIntegrationError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    db.commit()
+    return {"synced_count": len(invoices), "invoices": invoices}
 
 
 @router.post("/{agent_profile_id}/payments", response_model=PaymentRead, status_code=status.HTTP_201_CREATED)

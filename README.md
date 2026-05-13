@@ -20,7 +20,7 @@ The frontend is the visible portal in the browser. It is built with React and Ta
 - Staff and agent roles
 - Agent profile management
 - Membership and payment tracking
-- Stripe-ready payment placeholders
+- Stripe customer and invoice sync support
 - Onboarding checklist with admin approval
 - Training Academy
 - Further Training
@@ -44,7 +44,7 @@ The frontend is the visible portal in the browser. It is built with React and Ta
 - Marketing Hub is locked until the social media and advertising policy has been accepted.
 - Further Training is locked until mandatory onboarding training is complete.
 - An agent cannot be Approved to Trade until the final approval checks are complete.
-- Stripe is prepared, but this version does not charge real money.
+- Stripe can be connected to read customer invoices and payment status. Creating live subscriptions or charges should only be enabled after Stripe prices and business approval are in place.
 
 The final approval checks include:
 
@@ -95,6 +95,8 @@ JWT_SECRET_KEY="change-this-before-real-use"
 STRIPE_SECRET_KEY=""
 STRIPE_WEBHOOK_SECRET=""
 ```
+
+Use a Stripe test key first, starting with `sk_test_`. Only use a live key, starting with `sk_live_`, when the business is ready to connect live billing data.
 
 For PostgreSQL, the database setting will look more like this:
 

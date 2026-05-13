@@ -81,6 +81,9 @@ This includes:
 - Membership status
 - Payment status
 - Payment method
+- Stripe customer ID
+- Stripe subscription ID
+- Stripe invoice sync
 - Last payment date
 - Next payment date
 - Failed payment count
@@ -89,7 +92,7 @@ This includes:
 
 Agents can view their own membership records, but payment status updates are admin-controlled.
 
-Stripe is prepared for later but does not charge real money in this version.
+Stripe can be connected so admins can create a Stripe customer record and sync invoice status into the portal. The current portal reads invoice data and payment outcomes; it does not create live subscriptions or charges without a future approved Stripe price setup.
 
 Membership status, payment status, access level changes, and new payment records are written to the audit log.
 
@@ -346,18 +349,17 @@ The system then:
 
 ## Stripe Notes
 
-Stripe is prepared but not live.
+Stripe can now be connected for customer and invoice visibility.
 
 This version includes:
 
-- Customer creation placeholder
-- Subscription creation placeholder
-- Subscription cancellation placeholder
-- Payment success handler
-- Payment failure handler
-- Webhook route placeholder
+- Creating a Stripe customer from an agent profile
+- Saving Stripe customer and subscription IDs
+- Syncing Stripe invoices into portal payment records
+- Showing invoice links and PDF links to agents
+- Webhook handling for paid invoices, failed invoices, and cancelled subscriptions
 
-Do not add real Stripe keys until the business is ready to test real payments.
+Start with Stripe test keys. Do not use live keys until the business is ready to connect live billing data.
 
 ## Routine Admin Checks
 

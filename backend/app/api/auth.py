@@ -6,6 +6,7 @@ from app.api.deps import get_current_active_user
 from app.core.roles import DEFAULT_ROLES
 from app.db.session import get_db
 from app.models.role import Role
+from app.models.agent_profile import AgentProfile
 from app.models.user import User
 from app.schemas.auth import LoginRequest, RegisterUserRequest, TokenResponse, UserRead
 from app.services.passwords import hash_password, verify_password
@@ -97,6 +98,14 @@ def login_user(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="This user account is inactive.",
         )
+
+    if user.role.name == "Agent":
+        agent_profile = db.scalar(select(AgentProfile).where(AgentProfile.user_id == user.id))
+        if agent_profile is not None and not agent_profile.portal_access_enabled:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Portal access is not enabled for this agent yet.",
+            )
 
     access_token = create_access_token(
         subject=str(user.id),

@@ -98,6 +98,32 @@ class MembershipRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class StripeInvoiceRead(BaseModel):
+    stripe_invoice_id: str
+    number: str | None = None
+    status: str
+    currency: str
+    amount_due: Decimal
+    amount_paid: Decimal
+    amount_remaining: Decimal
+    hosted_invoice_url: str | None = None
+    invoice_pdf: str | None = None
+    created: date | None = None
+    due_date: date | None = None
+    paid: bool = False
+    attempt_count: int = 0
+    subscription: str | None = None
+    customer: str | None = None
+    payment_intent: str | None = None
+    livemode: bool = False
+    paid_at: date | None = None
+
+
+class StripeInvoiceSyncResponse(BaseModel):
+    synced_count: int
+    invoices: list[StripeInvoiceRead]
+
+
 class PaymentCreate(BaseModel):
     amount: Decimal = Field(ge=0, decimal_places=2)
     currency: str = Field(default=DEFAULT_CURRENCY, min_length=3, max_length=3)
@@ -153,4 +179,3 @@ class PaymentRead(BaseModel):
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
-

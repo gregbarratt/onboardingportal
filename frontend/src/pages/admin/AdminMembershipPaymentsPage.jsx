@@ -1,4 +1,4 @@
-import { Plus, Save } from "lucide-react";
+import { Plus, RefreshCw, Save, UserPlus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
@@ -10,6 +10,7 @@ import {
   LoadingState,
   PrimaryButton,
   SelectInput,
+  SecondaryButton,
   StatusBadge,
   TextArea,
   TextInput,
@@ -29,6 +30,8 @@ const blankMembership = {
   membership_status: "Payment Pending",
   payment_status: "Not Started",
   payment_method: "",
+  stripe_customer_id: "",
+  stripe_subscription_id: "",
   last_payment_date: "",
   next_payment_date: "",
   failed_payment_count: 0,
@@ -107,6 +110,7 @@ function MembershipDetail({ agentId }) {
   const [paymentForm, setPaymentForm] = useState(blankPayment);
   const [saving, setSaving] = useState(false);
   const [addingPayment, setAddingPayment] = useState(false);
+  const [stripeBusy, setStripeBusy] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -119,6 +123,8 @@ function MembershipDetail({ agentId }) {
         membership_status: membership.data.membership_status || "Payment Pending",
         payment_status: membership.data.payment_status || "Not Started",
         payment_method: membership.data.payment_method || "",
+        stripe_customer_id: membership.data.stripe_customer_id || "",
+        stripe_subscription_id: membership.data.stripe_subscription_id || "",
         last_payment_date: membership.data.last_payment_date || "",
         next_payment_date: membership.data.next_payment_date || "",
         failed_payment_count: membership.data.failed_payment_count || 0,
@@ -191,6 +197,38 @@ function MembershipDetail({ agentId }) {
     }
   }
 
+  async function createStripeCustomer() {
+    setStripeBusy(true);
+    setError("");
+    setMessage("");
+
+    try {
+      await apiClient.post(`/agents/${agentId}/stripe/customer`, {}, token);
+      await membership.reload();
+      setMessage("Stripe customer connected.");
+    } catch (err) {
+      setError(getFriendlyError(err, "We could not connect this agent to Stripe."));
+    } finally {
+      setStripeBusy(false);
+    }
+  }
+
+  async function syncStripeInvoices() {
+    setStripeBusy(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const result = await apiClient.post(`/agents/${agentId}/stripe/invoices/sync`, {}, token);
+      await Promise.all([membership.reload(), payments.reload()]);
+      setMessage(`${result.synced_count || 0} Stripe invoice record${result.synced_count === 1 ? "" : "s"} synced.`);
+    } catch (err) {
+      setError(getFriendlyError(err, "We could not sync Stripe invoices."));
+    } finally {
+      setStripeBusy(false);
+    }
+  }
+
   const paymentRows = useMemo(() => payments.data || [], [payments.data]);
 
   if (agent.loading || payments.loading) {
@@ -213,7 +251,20 @@ function MembershipDetail({ agentId }) {
         {message ? <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-700">{message}</div> : null}
 
         <form onSubmit={saveMembership}>
-          <Card title="Membership Status">
+          <Card
+            title="Membership Status"
+            description="Stripe links let the portal read invoices and payment outcomes from Stripe."
+            actions={
+              <div className="flex flex-wrap gap-2">
+                <SecondaryButton type="button" icon={UserPlus} disabled={stripeBusy || Boolean(membershipForm.stripe_customer_id)} onClick={createStripeCustomer}>
+                  {membershipForm.stripe_customer_id ? "Stripe connected" : "Create Stripe customer"}
+                </SecondaryButton>
+                <SecondaryButton type="button" icon={RefreshCw} disabled={stripeBusy || !membershipForm.stripe_customer_id} onClick={syncStripeInvoices}>
+                  {stripeBusy ? "Working..." : "Sync invoices"}
+                </SecondaryButton>
+              </div>
+            }
+          >
             <div className="grid gap-4 md:grid-cols-3">
               <FormField label="Membership type">
                 <TextInput value={membershipForm.membership_type} onChange={(event) => updateMembership("membership_type", event.target.value)} />
@@ -236,6 +287,12 @@ function MembershipDetail({ agentId }) {
               </FormField>
               <FormField label="Payment method">
                 <TextInput value={membershipForm.payment_method} onChange={(event) => updateMembership("payment_method", event.target.value)} />
+              </FormField>
+              <FormField label="Stripe customer ID">
+                <TextInput value={membershipForm.stripe_customer_id} onChange={(event) => updateMembership("stripe_customer_id", event.target.value)} />
+              </FormField>
+              <FormField label="Stripe subscription ID">
+                <TextInput value={membershipForm.stripe_subscription_id} onChange={(event) => updateMembership("stripe_subscription_id", event.target.value)} />
               </FormField>
               <FormField label="Last payment date">
                 <TextInput type="date" value={membershipForm.last_payment_date} onChange={(event) => updateMembership("last_payment_date", event.target.value)} />
@@ -262,7 +319,7 @@ function MembershipDetail({ agentId }) {
         </form>
 
         <form onSubmit={addPayment}>
-          <Card title="Add Payment Record" description="This tracks a payment record. It does not charge real money yet.">
+          <Card title="Add Payment Record" description="This is for manual records. Stripe invoices can be pulled in using Sync invoices above.">
             <div className="grid gap-4 md:grid-cols-3">
               <FormField label="Amount">
                 <TextInput required type="number" min="0" step="0.01" value={paymentForm.amount} onChange={(event) => updatePayment("amount", event.target.value)} />

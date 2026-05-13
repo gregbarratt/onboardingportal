@@ -49,6 +49,9 @@ export default function AdminAgentDetailPage() {
         first_name: agent.data.first_name || "",
         last_name: agent.data.last_name || "",
         email: agent.data.email || "",
+        personal_email: agent.data.personal_email || "",
+        company_email: agent.data.company_email || "",
+        portal_access_enabled: Boolean(agent.data.portal_access_enabled),
         phone: agent.data.phone || "",
         business_name: agent.data.business_name || "",
         status: agent.data.status || "Registered",
@@ -140,6 +143,9 @@ export default function AdminAgentDetailPage() {
                 <Detail label="Status" value={<StatusBadge status={selectedAgent.status} />} />
                 <Detail label="Agent ID" value={selectedAgent.agent_id || "Not assigned"} />
                 <Detail label="Email" value={selectedAgent.email} />
+                <Detail label="Personal email" value={selectedAgent.personal_email || "Not set"} />
+                <Detail label="One Travel Club email" value={selectedAgent.company_email || "Not set"} />
+                <Detail label="Portal access" value={selectedAgent.portal_access_enabled ? "Enabled" : "Disabled"} />
                 <Detail label="Phone" value={selectedAgent.phone || "Not set"} />
                 <Detail label="Business" value={selectedAgent.business_name || "Not set"} />
                 <Detail label="Created" value={formatDateTime(selectedAgent.created_at)} />
@@ -178,6 +184,12 @@ export default function AdminAgentDetailPage() {
               <FormField label="Email">
                 <TextInput type="email" value={form.email || ""} onChange={(event) => updateField("email", event.target.value)} />
               </FormField>
+              <FormField label="Personal email">
+                <TextInput type="email" value={form.personal_email || ""} onChange={(event) => updateField("personal_email", event.target.value)} />
+              </FormField>
+              <FormField label="One Travel Club email">
+                <TextInput type="email" value={form.company_email || ""} onChange={(event) => updateField("company_email", event.target.value)} />
+              </FormField>
               <FormField label="Phone">
                 <TextInput value={form.phone || ""} onChange={(event) => updateField("phone", event.target.value)} />
               </FormField>
@@ -199,6 +211,17 @@ export default function AdminAgentDetailPage() {
               <FormField label="Postcode">
                 <TextInput value={form.postcode || ""} onChange={(event) => updateField("postcode", event.target.value)} />
               </FormField>
+              <div className="md:col-span-2">
+                <label className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-3 text-sm font-medium text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={Boolean(form.portal_access_enabled)}
+                    onChange={(event) => updateField("portal_access_enabled", event.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-sky-700 focus:ring-sky-600"
+                  />
+                  Agent can log in to the portal
+                </label>
+              </div>
             </div>
             <div className="mt-4">
               <PrimaryButton type="submit" icon={Save} disabled={saving}>

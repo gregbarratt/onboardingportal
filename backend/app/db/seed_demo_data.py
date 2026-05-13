@@ -319,6 +319,9 @@ def ensure_demo_agents(db: Session, users: dict[str, User]) -> dict[str, AgentPr
         agent.first_name = spec["first_name"]
         agent.last_name = spec["last_name"]
         agent.email = spec["email"]
+        agent.personal_email = spec["email"]
+        agent.company_email = f"{spec['first_name'].lower()}.{spec['last_name'].lower()}@onetravelclub.co.uk"
+        agent.portal_access_enabled = True
         agent.phone = spec["phone"]
         agent.business_name = spec["business_name"]
         agent.status = spec["status"]

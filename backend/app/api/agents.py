@@ -93,6 +93,9 @@ def create_agent_profile(
         first_name=request.first_name,
         last_name=request.last_name,
         email=request.email,
+        personal_email=request.personal_email or request.email,
+        company_email=request.company_email,
+        portal_access_enabled=request.portal_access_enabled if admin_user and request.portal_access_enabled is not None else True,
         phone=request.phone,
         business_name=request.business_name,
         status=request.status or DEFAULT_AGENT_STATUS,
@@ -198,10 +201,18 @@ def update_agent_profile(
                 detail=f"{required_field} cannot be blank.",
             )
 
-    if not is_admin_user(current_user) and "status" in update_data:
+    admin_user = is_admin_user(current_user)
+
+    if not admin_user and "status" in update_data:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can update an agent status.",
+        )
+
+    if not admin_user and "portal_access_enabled" in update_data:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can update portal access.",
         )
 
     for field, value in update_data.items():

@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Date, DateTime, ForeignKey, String, Text, func
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, String, Text, func, true
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.core.agent_statuses import DEFAULT_AGENT_STATUS
@@ -37,6 +37,9 @@ class AgentProfile(Base):
     first_name: Mapped[str] = mapped_column(String(100), nullable=False)
     last_name: Mapped[str] = mapped_column(String(100), nullable=False)
     email: Mapped[str] = mapped_column(String(255), index=True, nullable=False)
+    personal_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    company_email: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    portal_access_enabled: Mapped[bool] = mapped_column(Boolean, default=True, server_default=true(), nullable=False)
     phone: Mapped[str | None] = mapped_column(String(50), nullable=True)
     business_name: Mapped[str | None] = mapped_column(String(255), nullable=True)
     status: Mapped[str] = mapped_column(

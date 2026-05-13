@@ -71,6 +71,8 @@ STRIPE_SECRET_KEY=""
 STRIPE_WEBHOOK_SECRET=""
 ```
 
+For Stripe testing, use a test secret key that starts with `sk_test_`. Only use a live key that starts with `sk_live_` when the business is ready to connect live billing data.
+
 Do not put real passwords or secret keys into GitHub.
 
 ## Step 4: Prepare The Database

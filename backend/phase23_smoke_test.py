@@ -13,6 +13,8 @@ def configure_temporary_database() -> tempfile.TemporaryDirectory[str]:
     os.environ["JWT_SECRET_KEY"] = "phase23-smoke-test-only"
     os.environ["FRONTEND_URL"] = "http://127.0.0.1:5173"
     os.environ["UPLOAD_DIR"] = str(Path(temp_dir.name) / "uploads")
+    os.environ["STRIPE_SECRET_KEY"] = ""
+    os.environ["STRIPE_WEBHOOK_SECRET"] = ""
     return temp_dir
 
 
@@ -98,6 +100,9 @@ def auth_headers(token: str) -> dict[str, str]:
 def test_agent_profile(headers: dict[str, str], agent: dict[str, Any]) -> None:
     profile = assert_json("agent profile", client.get(f"/agents/{agent['id']}", headers=headers), 200)
     assert profile["email"] == agent["email"], "Agent profile email did not match."
+    assert profile["personal_email"], "Agent personal email was missing."
+    assert profile["company_email"], "Agent company email was missing."
+    assert profile["portal_access_enabled"] is True, "Agent portal access flag was missing."
 
 
 def test_membership_and_payment(admin_headers: dict[str, str], agent: dict[str, Any], agent_headers: dict[str, str]) -> None:
@@ -115,6 +120,23 @@ def test_membership_and_payment(admin_headers: dict[str, str], agent: dict[str, 
     )
     assert updated["membership_status"] == "Active", "Membership status update failed."
     assert updated["payment_status"] == "Paid", "Membership payment update failed."
+
+    stripe_ids = assert_json(
+        "manual Stripe IDs update",
+        client.put(
+            f"/agents/{agent['id']}/membership",
+            headers=admin_headers,
+            json={"stripe_customer_id": "cus_smoke_test", "stripe_subscription_id": "sub_smoke_test"},
+        ),
+        200,
+    )
+    assert stripe_ids["stripe_customer_id"] == "cus_smoke_test", "Stripe customer ID was not saved."
+
+    assert_status(
+        "Stripe invoices need configuration",
+        client.get(f"/agents/{agent['id']}/stripe/invoices", headers=admin_headers),
+        400,
+    )
 
     assert_status(
         "agent blocked from creating payment",
