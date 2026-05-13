@@ -39,6 +39,7 @@ Each completed phase will be saved as a commit. A commit is like a labelled chec
 - Phase 10: Documents and agreements
 - Phase 11: Compliance centre
 - Phase 12: Certificates
+- Phase 13: Supplier access and marketing hub
 
 ## Backend
 
@@ -285,3 +286,42 @@ Certificate endpoints:
 - `POST /agents/{id}/certificates`
 - `POST /certificates/{id}/expire`
 - `POST /certificates/{id}/revoke`
+
+## Supplier Access and Marketing Hub
+
+Supplier Access stores protected supplier portal links, login instructions, access notes, and training requirements.
+
+Marketing Hub stores protected business resources such as brand guidelines, approved logo files, social media templates, approved offer wording, advertising policy guidance, pricing guidance, campaign assets, and downloadable resources.
+
+Supplier Access is locked for agents until they are Approved to Trade. Marketing Hub is locked for agents until they have accepted the social media and advertising policy.
+
+Admins can create supplier and marketing resources. Agents can view the resources only after meeting the access rules.
+
+Supplier types are:
+
+- Tour Operator
+- Cruise
+- Flight Supplier
+- Hotel Supplier
+- Transfer Supplier
+- Insurance
+- Ancillary
+
+Marketing asset types are:
+
+- Brand Guidelines
+- Approved Logo File
+- Social Media Template
+- Approved Offer Wording
+- Advertising Policy
+- CMA Pricing Guidance
+- Campaign Asset
+- Downloadable Resource
+- Other
+
+Supplier and marketing endpoints:
+
+- `GET /supplier-access`
+- `POST /supplier-access`
+- `GET /marketing-assets`
+- `POST /marketing-assets`

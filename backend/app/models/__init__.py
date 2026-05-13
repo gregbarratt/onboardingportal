@@ -6,6 +6,7 @@ from app.models.live_training import AttendanceLog, LiveTrainingSession
 from app.models.membership import Membership
 from app.models.onboarding import AgentOnboardingProgress, OnboardingStep
 from app.models.payment import Payment
+from app.models.resources import MarketingAsset, SupplierAccess
 from app.models.role import Role
 from app.models.training import (
     AgentTrainingProgress,
@@ -28,7 +29,9 @@ __all__ = [
     "OnboardingStep",
     "Payment",
     "PolicyAcceptance",
+    "MarketingAsset",
     "Role",
+    "SupplierAccess",
     "TrainingAssignment",
     "TrainingCategory",
     "TrainingModule",
