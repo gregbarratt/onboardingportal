@@ -124,6 +124,29 @@ class StripeInvoiceSyncResponse(BaseModel):
     invoices: list[StripeInvoiceRead]
 
 
+class StripeSubscriptionRead(BaseModel):
+    stripe_subscription_id: str
+    status: str
+    customer: str | None = None
+    current_period_start: date | None = None
+    current_period_end: date | None = None
+    cancel_at_period_end: bool = False
+    canceled_at: date | None = None
+    trial_start: date | None = None
+    trial_end: date | None = None
+    latest_invoice: str | None = None
+    latest_invoice_status: str | None = None
+    latest_invoice_url: str | None = None
+    collection_method: str | None = None
+    livemode: bool = False
+    created: date | None = None
+
+
+class StripeSubscriptionSyncResponse(BaseModel):
+    synced: bool
+    subscription: StripeSubscriptionRead | None = None
+
+
 class PaymentCreate(BaseModel):
     amount: Decimal = Field(ge=0, decimal_places=2)
     currency: str = Field(default=DEFAULT_CURRENCY, min_length=3, max_length=3)

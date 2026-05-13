@@ -20,7 +20,7 @@ The frontend is the visible portal in the browser. It is built with React and Ta
 - Staff and agent roles
 - Agent profile management
 - Membership and payment tracking
-- Stripe customer and invoice sync support
+- Stripe customer, subscription, and invoice sync support
 - Onboarding checklist with admin approval
 - Training Academy
 - Further Training
@@ -44,7 +44,7 @@ The frontend is the visible portal in the browser. It is built with React and Ta
 - Marketing Hub is locked until the social media and advertising policy has been accepted.
 - Further Training is locked until mandatory onboarding training is complete.
 - An agent cannot be Approved to Trade until the final approval checks are complete.
-- Stripe can be connected to read customer invoices and payment status. Creating live subscriptions or charges should only be enabled after Stripe prices and business approval are in place.
+- Stripe can be connected to read customer subscriptions, invoices, and payment status. Creating live subscriptions or charges should only be enabled after Stripe prices and business approval are in place.
 
 The final approval checks include:
 

@@ -229,6 +229,26 @@ function MembershipDetail({ agentId }) {
     }
   }
 
+  async function syncStripeSubscription() {
+    setStripeBusy(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const result = await apiClient.post(`/agents/${agentId}/stripe/subscriptions/sync`, {}, token);
+      await membership.reload();
+      if (result.synced && result.subscription) {
+        setMessage(`Stripe subscription ${result.subscription.stripe_subscription_id} synced with status ${result.subscription.status}.`);
+      } else {
+        setMessage("No Stripe subscription was found for this customer.");
+      }
+    } catch (err) {
+      setError(getFriendlyError(err, "We could not sync Stripe subscriptions."));
+    } finally {
+      setStripeBusy(false);
+    }
+  }
+
   const paymentRows = useMemo(() => payments.data || [], [payments.data]);
 
   if (agent.loading || payments.loading) {
@@ -261,6 +281,9 @@ function MembershipDetail({ agentId }) {
                 </SecondaryButton>
                 <SecondaryButton type="button" icon={RefreshCw} disabled={stripeBusy || !membershipForm.stripe_customer_id} onClick={syncStripeInvoices}>
                   {stripeBusy ? "Working..." : "Sync invoices"}
+                </SecondaryButton>
+                <SecondaryButton type="button" icon={RefreshCw} disabled={stripeBusy || !membershipForm.stripe_customer_id} onClick={syncStripeSubscription}>
+                  {stripeBusy ? "Working..." : "Sync subscription"}
                 </SecondaryButton>
               </div>
             }

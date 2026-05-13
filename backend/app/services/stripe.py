@@ -102,6 +102,25 @@ def list_stripe_invoices(customer_id: str, limit: int = 20) -> list[dict[str, An
     return [stripe_invoice_to_portal_invoice(stripe_object_to_dict(invoice)) for invoice in invoice_rows]
 
 
+def list_stripe_subscriptions(customer_id: str, limit: int = 20) -> list[dict[str, Any]]:
+    ensure_stripe_ready()
+    try:
+        response = stripe_sdk.Subscription.list(
+            customer=customer_id,
+            status="all",
+            limit=limit,
+            expand=["data.latest_invoice"],
+        )
+    except Exception as exc:  # pragma: no cover - depends on Stripe API/network
+        raise StripeIntegrationError(f"Stripe subscriptions could not be loaded: {exc}") from exc
+
+    subscription_rows = response.get("data", []) if hasattr(response, "get") else response.data
+    return [
+        stripe_subscription_to_portal_subscription(stripe_object_to_dict(subscription))
+        for subscription in subscription_rows
+    ]
+
+
 def create_stripe_subscription(membership: Membership) -> dict[str, Any]:
     ensure_stripe_ready()
     if not membership.stripe_customer_id:
@@ -160,6 +179,32 @@ def sync_stripe_invoices_for_membership(
         )
 
     return invoices
+
+
+def sync_stripe_subscription_for_membership(
+    db: Session,
+    *,
+    agent_profile: AgentProfile,
+    membership: Membership,
+    current_user: User | None = None,
+) -> dict[str, Any] | None:
+    if not membership.stripe_customer_id:
+        return None
+
+    subscriptions = list_stripe_subscriptions(membership.stripe_customer_id)
+    subscription = choose_subscription_for_membership(membership, subscriptions)
+    if subscription is None:
+        return None
+
+    update_membership_from_subscription(
+        db,
+        agent_profile=agent_profile,
+        membership=membership,
+        subscription=subscription,
+        current_user=current_user,
+        source="Stripe subscription sync",
+    )
+    return subscription
 
 
 def handle_successful_payment(payment: Payment, membership: Membership | None = None) -> dict[str, Any]:
@@ -224,8 +269,11 @@ def process_stripe_webhook_event(
     if event_type in {"invoice.paid", "invoice.payment_succeeded", "invoice.payment_failed"}:
         handle_stripe_invoice_event(db, event_type=event_type, invoice=stripe_object)
         handled = True
+    elif event_type in {"customer.subscription.created", "customer.subscription.updated"}:
+        handle_stripe_subscription_event(db, event_type=event_type, subscription=stripe_object)
+        handled = True
     elif event_type == "customer.subscription.deleted":
-        handle_stripe_subscription_deleted(db, subscription=stripe_object)
+        handle_stripe_subscription_event(db, event_type=event_type, subscription=stripe_object)
         handled = True
 
     db.commit()
@@ -300,30 +348,34 @@ def handle_stripe_invoice_event(db: Session, *, event_type: str, invoice: dict[s
     )
 
 
-def handle_stripe_subscription_deleted(db: Session, *, subscription: dict[str, Any]) -> None:
+def handle_stripe_subscription_event(db: Session, *, event_type: str, subscription: dict[str, Any]) -> None:
     subscription_id = text_or_none(subscription.get("id"))
     if not subscription_id:
         return
 
+    customer_id = text_or_none(subscription.get("customer"))
     membership = db.scalar(select(Membership).where(Membership.stripe_subscription_id == subscription_id))
+    if membership is None and customer_id:
+        membership = db.scalar(select(Membership).where(Membership.stripe_customer_id == customer_id))
     if membership is None:
         return
 
-    previous_membership_status = membership.membership_status
-    previous_payment_status = membership.payment_status
-    handle_subscription_cancelled(membership)
-
     agent_profile = db.get(AgentProfile, membership.agent_id)
-    if agent_profile is not None:
-        add_membership_audit_log(
-            db,
-            agent_profile=agent_profile,
-            membership=membership,
-            current_user=None,
-            previous_membership_status=previous_membership_status,
-            previous_payment_status=previous_payment_status,
-            source="Stripe webhook customer.subscription.deleted",
-        )
+    if agent_profile is None:
+        return
+
+    portal_subscription = stripe_subscription_to_portal_subscription(subscription)
+    if event_type == "customer.subscription.deleted":
+        portal_subscription["status"] = "canceled"
+
+    update_membership_from_subscription(
+        db,
+        agent_profile=agent_profile,
+        membership=membership,
+        subscription=portal_subscription,
+        current_user=None,
+        source=f"Stripe webhook {event_type}",
+    )
 
 
 def upsert_payment_from_invoice(
@@ -425,6 +477,54 @@ def update_membership_from_invoice(
     )
 
 
+def update_membership_from_subscription(
+    db: Session,
+    *,
+    agent_profile: AgentProfile,
+    membership: Membership,
+    subscription: dict[str, Any],
+    current_user: User | None,
+    source: str,
+) -> None:
+    previous_membership_status = membership.membership_status
+    previous_payment_status = membership.payment_status
+    previous_subscription_id = membership.stripe_subscription_id
+
+    subscription_id = text_or_none(subscription.get("stripe_subscription_id") or subscription.get("id"))
+    if subscription_id:
+        membership.stripe_subscription_id = subscription_id
+    membership.payment_method = membership.payment_method or "Stripe"
+
+    membership_status, payment_status = map_subscription_status_to_membership_status(subscription.get("status"))
+    membership.membership_status = membership_status
+    membership.payment_status = payment_status
+    membership.next_payment_date = subscription.get("current_period_end") or membership.next_payment_date
+    if subscription.get("canceled_at"):
+        membership.cancellation_date = subscription.get("canceled_at")
+
+    add_membership_audit_log(
+        db,
+        agent_profile=agent_profile,
+        membership=membership,
+        current_user=current_user,
+        previous_membership_status=previous_membership_status,
+        previous_payment_status=previous_payment_status,
+        source=source,
+    )
+
+    if previous_subscription_id != membership.stripe_subscription_id:
+        create_audit_log(
+            db,
+            action_type="Payment setup completed",
+            description=f"{source}: subscription linked as {membership.stripe_subscription_id}.",
+            previous_value=text_or_none(previous_subscription_id),
+            new_value=text_or_none(membership.stripe_subscription_id),
+            created_by=current_user.id if current_user else None,
+            user_id=agent_profile.user_id,
+            agent_id=agent_profile.id,
+        )
+
+
 def add_membership_audit_log(
     db: Session,
     *,
@@ -488,6 +588,74 @@ def stripe_invoice_to_portal_invoice(invoice: dict[str, Any]) -> dict[str, Any]:
         "livemode": bool(invoice.get("livemode")),
         "paid_at": date_from_timestamp(status_transitions.get("paid_at")),
     }
+
+
+def stripe_subscription_to_portal_subscription(subscription: dict[str, Any]) -> dict[str, Any]:
+    latest_invoice = subscription.get("latest_invoice")
+    latest_invoice_data = latest_invoice if isinstance(latest_invoice, dict) else {}
+    latest_invoice_id = text_or_none(latest_invoice_data.get("id")) or text_or_none(latest_invoice)
+    first_item = first_subscription_item(subscription)
+
+    return {
+        "stripe_subscription_id": text_or_none(subscription.get("id")) or "",
+        "status": text_or_none(subscription.get("status")) or "unknown",
+        "customer": text_or_none(subscription.get("customer")),
+        "current_period_start": date_from_timestamp(subscription.get("current_period_start") or first_item.get("current_period_start")),
+        "current_period_end": date_from_timestamp(subscription.get("current_period_end") or first_item.get("current_period_end")),
+        "cancel_at_period_end": bool(subscription.get("cancel_at_period_end")),
+        "canceled_at": date_from_timestamp(subscription.get("canceled_at")),
+        "trial_start": date_from_timestamp(subscription.get("trial_start")),
+        "trial_end": date_from_timestamp(subscription.get("trial_end")),
+        "latest_invoice": latest_invoice_id,
+        "latest_invoice_status": text_or_none(latest_invoice_data.get("status")),
+        "latest_invoice_url": text_or_none(latest_invoice_data.get("hosted_invoice_url")),
+        "collection_method": text_or_none(subscription.get("collection_method")),
+        "livemode": bool(subscription.get("livemode")),
+        "created": date_from_timestamp(subscription.get("created")),
+    }
+
+
+def first_subscription_item(subscription: dict[str, Any]) -> dict[str, Any]:
+    items = subscription.get("items") or {}
+    data = items.get("data") if isinstance(items, dict) else None
+    if isinstance(data, list) and data and isinstance(data[0], dict):
+        return data[0]
+    return {}
+
+
+def choose_subscription_for_membership(
+    membership: Membership,
+    subscriptions: list[dict[str, Any]],
+) -> dict[str, Any] | None:
+    if not subscriptions:
+        return None
+
+    if membership.stripe_subscription_id:
+        for subscription in subscriptions:
+            if subscription.get("stripe_subscription_id") == membership.stripe_subscription_id:
+                return subscription
+
+    for preferred_status in ("active", "trialing", "past_due", "incomplete"):
+        for subscription in subscriptions:
+            if str(subscription.get("status") or "").lower() == preferred_status:
+                return subscription
+
+    return subscriptions[0]
+
+
+def map_subscription_status_to_membership_status(status: object) -> tuple[str, str]:
+    subscription_status = str(status or "").lower()
+    if subscription_status in {"active", "trialing"}:
+        return "Active", "Paid"
+    if subscription_status in {"past_due", "unpaid"}:
+        return "Overdue", "Overdue"
+    if subscription_status in {"incomplete", "incomplete_expired"}:
+        return "Payment Pending", "Pending"
+    if subscription_status in {"canceled", "cancelled"}:
+        return "Cancelled", "Cancelled"
+    if subscription_status == "paused":
+        return "Suspended", "Failed"
+    return "Payment Pending", "Pending"
 
 
 def map_invoice_status_to_payment_status(status: object) -> str:

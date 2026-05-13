@@ -59,9 +59,10 @@ This page shows:
 - Last payment date
 - Next payment date
 - Payment history
+- Recurring payment reference, when Stripe is connected
 - Stripe invoice links, when Stripe is connected
 
-When Stripe is connected, paid and failed invoices can appear here with invoice links and PDF links.
+When Stripe is connected, the portal can show the recurring payment reference and paid or failed invoices with invoice links and PDF links.
 
 Agents can view membership and payment records, but they cannot create or edit payment records. Payment records are controlled by admin and can be updated from Stripe.
 

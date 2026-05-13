@@ -65,6 +65,7 @@ function MembershipContent({ profile }) {
             <Detail label="Membership type" value={membership.data.membership_type} />
             <Detail label="Setup fee" value={formatMoney(membership.data.setup_fee_amount)} />
             <Detail label="Payment method" value={membership.data.payment_method} />
+            <Detail label="Recurring payment reference" value={membership.data.stripe_subscription_id} />
             <Detail label="Last payment" value={formatDate(membership.data.last_payment_date)} />
             <Detail label="Access level" value={membership.data.access_level} />
             <div>

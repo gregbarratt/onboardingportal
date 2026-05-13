@@ -83,6 +83,7 @@ This includes:
 - Payment method
 - Stripe customer ID
 - Stripe subscription ID
+- Stripe subscription sync
 - Stripe invoice sync
 - Last payment date
 - Next payment date
@@ -92,7 +93,7 @@ This includes:
 
 Agents can view their own membership records, but payment status updates are admin-controlled.
 
-Stripe can be connected so admins can create a Stripe customer record and sync invoice status into the portal. The current portal reads invoice data and payment outcomes; it does not create live subscriptions or charges without a future approved Stripe price setup.
+Stripe can be connected so admins can create a Stripe customer record, sync live subscription status, and sync invoice status into the portal. The current portal reads subscription and invoice data; it does not create live subscriptions or charges without a future approved Stripe price setup.
 
 Membership status, payment status, access level changes, and new payment records are written to the audit log.
 
@@ -355,6 +356,7 @@ This version includes:
 
 - Creating a Stripe customer from an agent profile
 - Saving Stripe customer and subscription IDs
+- Syncing live subscription status into membership status
 - Syncing Stripe invoices into portal payment records
 - Showing invoice links and PDF links to agents
 - Webhook handling for paid invoices, failed invoices, and cancelled subscriptions

@@ -24,13 +24,17 @@ from app.schemas.membership import (
     PaymentRead,
     StripeInvoiceRead,
     StripeInvoiceSyncResponse,
+    StripeSubscriptionRead,
+    StripeSubscriptionSyncResponse,
 )
 from app.services.audit import create_audit_log
 from app.services.stripe import (
     StripeIntegrationError,
     create_stripe_customer,
     list_stripe_invoices,
+    list_stripe_subscriptions,
     sync_stripe_invoices_for_membership,
+    sync_stripe_subscription_for_membership,
 )
 
 
@@ -286,6 +290,56 @@ def sync_agent_stripe_invoices(
 
     db.commit()
     return {"synced_count": len(invoices), "invoices": invoices}
+
+
+@router.get("/{agent_profile_id}/stripe/subscriptions", response_model=list[StripeSubscriptionRead])
+def list_agent_stripe_subscriptions(
+    agent_profile_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> list[dict]:
+    agent_profile = get_agent_or_404(db, agent_profile_id)
+    check_agent_access(agent_profile, current_user)
+    membership = get_membership_or_404(db, agent_profile.id)
+    if not membership.stripe_customer_id:
+        return []
+
+    try:
+        return list_stripe_subscriptions(membership.stripe_customer_id)
+    except StripeIntegrationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.post("/{agent_profile_id}/stripe/subscriptions/sync", response_model=StripeSubscriptionSyncResponse)
+def sync_agent_stripe_subscription(
+    agent_profile_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> dict:
+    if not is_admin_user(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can sync Stripe subscriptions.",
+        )
+
+    agent_profile = get_agent_or_404(db, agent_profile_id)
+    membership = get_membership_or_404(db, agent_profile.id)
+    if not membership.stripe_customer_id:
+        return {"synced": False, "subscription": None}
+
+    try:
+        subscription = sync_stripe_subscription_for_membership(
+            db,
+            agent_profile=agent_profile,
+            membership=membership,
+            current_user=current_user,
+        )
+    except StripeIntegrationError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    db.commit()
+    return {"synced": subscription is not None, "subscription": subscription}
 
 
 @router.post("/{agent_profile_id}/payments", response_model=PaymentRead, status_code=status.HTTP_201_CREATED)
