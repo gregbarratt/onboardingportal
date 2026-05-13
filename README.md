@@ -49,6 +49,7 @@ Each completed phase will be saved as a commit. A commit is like a labelled chec
 - Phase 20: Seed data and demo logins
 - Phase 21: Admin reports
 - Phase 22: Stripe preparation
+- Phase 23: Testing and bug fixes
 
 ## Backend
 
@@ -517,3 +518,34 @@ These values should stay blank until real Stripe keys are available. When real S
 ```text
 POST /stripe/webhook
 ```
+
+## Testing and Bug Fixes
+
+Phase 23 adds a smoke-test script. A smoke test is a quick safety check that runs the most important workflows and confirms the app still behaves correctly.
+
+The Phase 23 smoke test checks:
+
+- Login
+- Role access
+- Agent profile access
+- Membership and payment update
+- Onboarding checklist
+- Training progress
+- Further training lock
+- Live call attendance
+- Document upload and verification
+- Compliance policy acceptance
+- Final approval
+- Supplier access unlock
+- Marketing access unlock
+- Audit logs
+- Admin compliance dashboard
+- Admin reports
+
+To run it from the `backend` folder:
+
+```bash
+python phase23_smoke_test.py
+```
+
+The script uses a temporary test database, so it does not change the preview data you use in the browser.
