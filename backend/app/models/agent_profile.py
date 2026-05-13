@@ -15,6 +15,7 @@ if TYPE_CHECKING:
     from app.models.compliance import PolicyAcceptance
     from app.models.document import Document
     from app.models.live_training import AttendanceLog
+    from app.models.notification import Notification
     from app.models.onboarding import AgentOnboardingProgress
     from app.models.membership import Membership
     from app.models.payment import Payment
@@ -107,6 +108,10 @@ class AgentProfile(Base):
         cascade="all, delete-orphan",
     )
     admin_notes: Mapped[list[AdminNote]] = relationship(
+        back_populates="agent",
+        cascade="all, delete-orphan",
+    )
+    notifications: Mapped[list[Notification]] = relationship(
         back_populates="agent",
         cascade="all, delete-orphan",
     )

@@ -41,6 +41,7 @@ Each completed phase will be saved as a commit. A commit is like a labelled chec
 - Phase 12: Certificates
 - Phase 13: Supplier access and marketing hub
 - Phase 14: Audit logs and admin notes
+- Phase 15: Notifications
 
 ## Backend
 
@@ -363,3 +364,19 @@ Audit and admin note endpoints:
 - `GET /agents/{id}/audit-logs`
 - `POST /agents/{id}/admin-notes`
 - `GET /agents/{id}/admin-notes`
+
+## Notifications
+
+Notifications are messages inside the portal. They are not emails yet, but the system is ready to show alerts to agents and admins.
+
+Agent notifications include welcome messages, payment reminders, failed payment alerts, training assigned, training overdue, call reminders, missed call alerts, document required, document rejected, approved to trade, and certificate expiring.
+
+Admin notifications include new agent registered, payment failed, ID uploaded, document awaiting review, training failed, call missed, final approval ready, compliance training expired, and agent suspended.
+
+Admins can create notifications. Users can see their own notifications, and admins can see all notifications. Notifications can be marked as read.
+
+Notification endpoints:
+
+- `GET /notifications`
+- `POST /notifications`
+- `POST /notifications/{id}/read`

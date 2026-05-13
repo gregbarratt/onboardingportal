@@ -9,6 +9,7 @@ from app.api.documents import router as documents_router
 from app.api.health import router as health_router
 from app.api.live_training import router as live_training_router
 from app.api.memberships import router as memberships_router
+from app.api.notifications import router as notifications_router
 from app.api.onboarding import router as onboarding_router
 from app.api.resources import router as resources_router
 from app.api.training import router as training_router
@@ -23,6 +24,7 @@ app.include_router(auth_router)
 app.include_router(agents_router)
 app.include_router(audit_router)
 app.include_router(memberships_router)
+app.include_router(notifications_router)
 app.include_router(onboarding_router)
 app.include_router(training_router)
 app.include_router(live_training_router)

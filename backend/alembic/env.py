@@ -18,6 +18,7 @@ from app.models import (  # noqa: F401
     LiveTrainingSession,
     MarketingAsset,
     Membership,
+    Notification,
     OnboardingStep,
     Payment,
     PolicyAcceptance,

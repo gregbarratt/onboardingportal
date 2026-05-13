@@ -11,6 +11,7 @@ from app.models.role import Role
 
 if TYPE_CHECKING:
     from app.models.agent_profile import AgentProfile
+    from app.models.notification import Notification
 
 
 class User(Base):
@@ -43,4 +44,9 @@ class User(Base):
         back_populates="user",
         cascade="all, delete-orphan",
         uselist=False,
+    )
+    notifications: Mapped[list[Notification]] = relationship(
+        back_populates="recipient_user",
+        cascade="all, delete-orphan",
+        foreign_keys="Notification.recipient_user_id",
     )
