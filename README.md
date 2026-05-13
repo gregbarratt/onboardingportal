@@ -42,6 +42,7 @@ Each completed phase will be saved as a commit. A commit is like a labelled chec
 - Phase 13: Supplier access and marketing hub
 - Phase 14: Audit logs and admin notes
 - Phase 15: Notifications
+- Phase 16: Frontend setup
 
 ## Backend
 
@@ -380,3 +381,19 @@ Notification endpoints:
 - `GET /notifications`
 - `POST /notifications`
 - `POST /notifications/{id}/read`
+
+## Frontend
+
+The frontend is the visible web portal that agents and admins will use in the browser.
+
+This phase creates the React app foundation with Tailwind CSS styling, routing, login, dashboard layout, sidebar navigation, top bar, API client, authentication context, protected routes, and role guards.
+
+React builds the screens users see. Tailwind CSS controls the visual styling. Protected routes stop people seeing private portal pages unless they are logged in. Role guards stop users seeing areas they do not have permission to access.
+
+Frontend files are in the `frontend` folder.
+
+Frontend commands:
+
+- `npm install`
+- `npm run dev`
+- `npm run build`

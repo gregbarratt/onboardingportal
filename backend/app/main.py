@@ -1,4 +1,5 @@
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.audit import router as audit_router
 from app.api.agents import router as agents_router
@@ -13,11 +14,20 @@ from app.api.notifications import router as notifications_router
 from app.api.onboarding import router as onboarding_router
 from app.api.resources import router as resources_router
 from app.api.training import router as training_router
+from app.core.config import settings
 
 
 app = FastAPI(
     title="Travel Agent Onboarding Hub API",
     version="0.1.0",
+)
+
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=settings.cors_allowed_origins,
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
 )
 
 app.include_router(auth_router)

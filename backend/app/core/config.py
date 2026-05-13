@@ -18,6 +18,7 @@ class Settings(BaseSettings):
     jwt_secret_key: str = "change-this-before-real-use"
     jwt_algorithm: str = "HS256"
     jwt_access_token_expire_minutes: int = 60
+    frontend_url: str = "http://localhost:5173"
 
     model_config = SettingsConfigDict(
         env_file=(PROJECT_ROOT / ".env", BACKEND_DIR / ".env"),
@@ -30,6 +31,15 @@ class Settings(BaseSettings):
         if self.database_url.startswith("postgresql://"):
             return self.database_url.replace("postgresql://", "postgresql+psycopg://", 1)
         return self.database_url
+
+    @property
+    def cors_allowed_origins(self) -> list[str]:
+        origins = {
+            self.frontend_url,
+            "http://127.0.0.1:5173",
+            "http://localhost:5173",
+        }
+        return sorted(origin for origin in origins if origin)
 
 
 @lru_cache
