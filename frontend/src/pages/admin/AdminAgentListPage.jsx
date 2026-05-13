@@ -20,6 +20,7 @@ export default function AdminAgentListPage() {
   const [importing, setImporting] = useState(false);
   const [importError, setImportError] = useState("");
   const [importResult, setImportResult] = useState(null);
+  const [syncStripeAfterImport, setSyncStripeAfterImport] = useState(true);
 
   const filteredAgents = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -50,6 +51,7 @@ export default function AdminAgentListPage() {
           file_name: importFile.name,
           file_content_base64: fileContentBase64,
           update_existing: true,
+          sync_stripe_after_import: syncStripeAfterImport,
         },
         token,
       );
@@ -78,7 +80,7 @@ export default function AdminAgentListPage() {
 
         <Card
           title="Import Agents"
-          description="Upload the completed CSV to create or update agent profiles, membership details, and Stripe IDs."
+          description="Upload the completed CSV to create or update agent profiles, membership details, and Stripe IDs. If Stripe sync is switched on, the portal will also pull live invoices and subscription status for imported Stripe customers."
           actions={
             <a
               className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
@@ -100,6 +102,15 @@ export default function AdminAgentListPage() {
                 className="mt-1 block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-sm file:mr-4 file:rounded-md file:border-0 file:bg-sky-50 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-sky-700 hover:file:bg-sky-100"
               />
             </label>
+            <label className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700 lg:col-span-2">
+              <input
+                type="checkbox"
+                checked={syncStripeAfterImport}
+                onChange={(event) => setSyncStripeAfterImport(event.target.checked)}
+                className="h-4 w-4 rounded border-slate-300 text-teal-700 focus:ring-teal-700"
+              />
+              Sync live Stripe payments after import
+            </label>
             <PrimaryButton type="submit" icon={importing ? FileUp : Upload} disabled={importing}>
               {importing ? "Importing..." : "Import agents"}
             </PrimaryButton>
@@ -107,12 +118,16 @@ export default function AdminAgentListPage() {
 
           {importResult ? (
             <div className="mt-5 space-y-4">
-              <div className="grid gap-3 sm:grid-cols-5">
+              <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
                 <ImportStat label="Rows" value={importResult.total_rows} />
                 <ImportStat label="Created" value={importResult.created} />
                 <ImportStat label="Updated" value={importResult.updated} />
                 <ImportStat label="Skipped" value={importResult.skipped} />
                 <ImportStat label="Next ID" value={importResult.next_agent_id} />
+                <ImportStat label="Stripe synced" value={importResult.stripe_synced} />
+                <ImportStat label="Stripe issues" value={importResult.stripe_sync_failed} />
+                <ImportStat label="Invoices synced" value={importResult.stripe_invoices_synced} />
+                <ImportStat label="Subscriptions synced" value={importResult.stripe_subscriptions_synced} />
               </div>
               {importResult.errors?.length ? (
                 <DataTable

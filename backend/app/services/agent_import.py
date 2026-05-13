@@ -27,6 +27,11 @@ from app.schemas.agent import AgentCsvImportRequest
 from app.services.agent_ids import generate_next_agent_id
 from app.services.audit import create_audit_log
 from app.services.passwords import hash_password
+from app.services.stripe import (
+    StripeIntegrationError,
+    sync_stripe_invoices_for_membership,
+    sync_stripe_subscription_for_membership,
+)
 
 
 PROFILE_FIELDS = (
@@ -75,6 +80,10 @@ def import_agents_from_csv(
         "created": 0,
         "updated": 0,
         "skipped": 0,
+        "stripe_synced": 0,
+        "stripe_sync_failed": 0,
+        "stripe_invoices_synced": 0,
+        "stripe_subscriptions_synced": 0,
         "errors": [],
     }
 
@@ -82,13 +91,34 @@ def import_agents_from_csv(
         identifier = clean_text(row.get("agent_id")) or clean_text(row.get("login_email")) or clean_text(row.get("email"))
         try:
             with db.begin_nested():
-                action = import_agent_row(
+                action, agent_profile = import_agent_row(
                     db,
                     row=row,
                     update_existing=request.update_existing,
                     current_user=current_user,
                 )
                 result[action] += 1
+
+            if request.sync_stripe_after_import and action != "skipped":
+                try:
+                    sync_result = sync_imported_agent_stripe(
+                        db,
+                        agent_profile=agent_profile,
+                        current_user=current_user,
+                    )
+                    result["stripe_synced"] += sync_result["stripe_synced"]
+                    result["stripe_sync_failed"] += sync_result["stripe_sync_failed"]
+                    result["stripe_invoices_synced"] += sync_result["stripe_invoices_synced"]
+                    result["stripe_subscriptions_synced"] += sync_result["stripe_subscriptions_synced"]
+                except AgentImportRowError as exc:
+                    result["stripe_sync_failed"] += 1
+                    result["errors"].append(
+                        {
+                            "row_number": row_number,
+                            "identifier": identifier,
+                            "message": str(exc),
+                        }
+                    )
         except (AgentImportRowError, IntegrityError, ValueError) as exc:
             result["errors"].append(
                 {
@@ -101,6 +131,46 @@ def import_agents_from_csv(
     db.commit()
     result["next_agent_id"] = generate_next_agent_id(db)
     return result
+
+
+def sync_imported_agent_stripe(
+    db: Session,
+    *,
+    agent_profile: AgentProfile,
+    current_user: User,
+) -> dict[str, int]:
+    membership = db.scalar(select(Membership).where(Membership.agent_id == agent_profile.id))
+    if membership is None or not membership.stripe_customer_id:
+        return {
+            "stripe_synced": 0,
+            "stripe_sync_failed": 0,
+            "stripe_invoices_synced": 0,
+            "stripe_subscriptions_synced": 0,
+        }
+
+    try:
+        with db.begin_nested():
+            subscription = sync_stripe_subscription_for_membership(
+                db,
+                agent_profile=agent_profile,
+                membership=membership,
+                current_user=current_user,
+            )
+            invoices = sync_stripe_invoices_for_membership(
+                db,
+                agent_profile=agent_profile,
+                membership=membership,
+                current_user=current_user,
+            )
+    except StripeIntegrationError as exc:
+        raise AgentImportRowError(f"Stripe sync did not complete: {exc}") from exc
+
+    return {
+        "stripe_synced": 1,
+        "stripe_sync_failed": 0,
+        "stripe_invoices_synced": len(invoices),
+        "stripe_subscriptions_synced": 1 if subscription is not None else 0,
+    }
 
 
 def read_csv_rows(request: AgentCsvImportRequest) -> list[tuple[int, dict[str, str]]]:
@@ -128,7 +198,7 @@ def import_agent_row(
     row: dict[str, str],
     update_existing: bool,
     current_user: User,
-) -> str:
+) -> tuple[str, AgentProfile]:
     login_email = clean_email(row.get("login_email") or row.get("email"))
     first_name = required_text(row, "first_name")
     last_name = required_text(row, "last_name")
@@ -182,10 +252,10 @@ def import_agent_row(
             user_id=agent_profile.user_id,
             agent_id=agent_profile.id,
         )
-        return "created"
+        return "created", agent_profile
 
     if not update_existing:
-        return "skipped"
+        return "skipped", agent_profile
 
     if agent_profile.user_id != user.id:
         raise AgentImportRowError("The agent ID and login email belong to different existing records.")
@@ -197,7 +267,7 @@ def import_agent_row(
     if portal_access_enabled is not None:
         agent_profile.portal_access_enabled = portal_access_enabled
     upsert_membership(db, agent_profile, row)
-    return "updated"
+    return "updated", agent_profile
 
 
 def find_existing_agent_profile(db: Session, *, agent_id: str | None, login_email: str) -> AgentProfile | None:

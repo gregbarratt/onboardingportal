@@ -52,6 +52,8 @@ Admins can see all agents. Agents can only see their own profile.
 
 The Agent List also includes a CSV import tool. Admins can download the CSV template, fill in agent profile details, optional Stripe customer IDs, optional Stripe subscription IDs, and membership status, then upload the file to create or update agents in bulk.
 
+When importing existing agents, add the Stripe customer ID from Stripe in the `stripe_customer_id` column. It starts with `cus_`. If the "Sync live Stripe payments after import" option is selected, the portal will use that Stripe customer ID to pull the current subscription status and invoice records straight after the import.
+
 The import uses `agent_id` first and login email second to find existing agents. If `agent_id` is blank, the portal allocates the next available One Travel Club ID.
 
 ## Agent Detail
@@ -364,6 +366,8 @@ This version includes:
 - Searching Stripe for an existing customer by agent name and email
 - Linking the correct Stripe customer to the agent
 - Saving Stripe customer and subscription IDs
+- Importing existing agents with Stripe customer IDs
+- Syncing imported agents against live Stripe payments
 - Syncing live subscription status into membership status
 - Syncing Stripe invoices into portal payment records
 - Showing invoice links and PDF links to agents

@@ -186,6 +186,7 @@ class AgentCsvImportRequest(BaseModel):
     file_name: str = Field(min_length=1, max_length=255)
     file_content_base64: str = Field(min_length=1)
     update_existing: bool = True
+    sync_stripe_after_import: bool = False
 
 
 class AgentCsvImportError(BaseModel):
@@ -199,6 +200,10 @@ class AgentCsvImportResponse(BaseModel):
     created: int
     updated: int
     skipped: int
+    stripe_synced: int = 0
+    stripe_sync_failed: int = 0
+    stripe_invoices_synced: int = 0
+    stripe_subscriptions_synced: int = 0
     errors: list[AgentCsvImportError]
     next_agent_id: str
 
