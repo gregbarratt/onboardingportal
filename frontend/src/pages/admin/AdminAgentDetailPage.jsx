@@ -1,4 +1,4 @@
-import { MessageSquarePlus, Save } from "lucide-react";
+import { CheckCircle2, MessageSquarePlus, Save, ShieldCheck, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
@@ -31,10 +31,15 @@ export default function AdminAgentDetailPage() {
     initialData: [],
     fallbackError: "We could not load admin notes.",
   });
+  const finalApproval = useApiResource(agentId ? `/agents/${agentId}/final-approval` : "", {
+    enabled: Boolean(agentId),
+    fallbackError: "We could not load the final approval checks.",
+  });
   const [form, setForm] = useState({});
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [addingNote, setAddingNote] = useState(false);
+  const [approving, setApproving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -92,6 +97,22 @@ export default function AdminAgentDetailPage() {
     }
   }
 
+  async function approveToTrade() {
+    setApproving(true);
+    setError("");
+    setMessage("");
+
+    try {
+      await apiClient.post(`/agents/${agentId}/approve-to-trade`, {}, token);
+      await Promise.all([agent.reload(), finalApproval.reload()]);
+      setMessage("Agent approved to trade.");
+    } catch (err) {
+      setError(getFriendlyError(err, "We could not approve this agent yet."));
+    } finally {
+      setApproving(false);
+    }
+  }
+
   if (agent.loading) {
     return (
       <AdminPageShell title="Agent Detail" description="Loading the selected agent.">
@@ -109,7 +130,7 @@ export default function AdminAgentDetailPage() {
       actions={<AdminLinkButton to="/admin/agents">Back to agents</AdminLinkButton>}
     >
       <div className="space-y-6">
-        <ErrorBanner message={agent.error || notes.error || error} />
+        <ErrorBanner message={agent.error || notes.error || finalApproval.error || error} />
         {message ? <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-700">{message}</div> : null}
 
         {selectedAgent ? (
@@ -137,6 +158,13 @@ export default function AdminAgentDetailPage() {
             </Card>
           </div>
         ) : null}
+
+        <FinalApprovalCard
+          approval={finalApproval.data}
+          loading={finalApproval.loading}
+          approving={approving}
+          onApprove={approveToTrade}
+        />
 
         <form onSubmit={saveAgent}>
           <Card title="Edit Agent Record" description="Admins can update the agent status and key contact details.">
@@ -205,6 +233,84 @@ export default function AdminAgentDetailPage() {
         </div>
       </div>
     </AdminPageShell>
+  );
+}
+
+function FinalApprovalCard({ approval, loading, approving, onApprove }) {
+  if (loading) {
+    return (
+      <Card title="Final Approval Gate" description="The portal is checking the items needed before this agent can trade.">
+        <LoadingState message="Checking final approval rules..." />
+      </Card>
+    );
+  }
+
+  if (!approval) {
+    return null;
+  }
+
+  const statusText = approval.approved_to_trade
+    ? "Approved to Trade"
+    : approval.ready_for_approval
+      ? "Ready for approval"
+      : `${approval.missing_requirements.length} item${approval.missing_requirements.length === 1 ? "" : "s"} missing`;
+
+  return (
+    <Card
+      title="Final Approval Gate"
+      description="This is the final check before supplier access opens for the agent."
+      actions={
+        <PrimaryButton
+          type="button"
+          icon={ShieldCheck}
+          disabled={!approval.ready_for_approval || approval.approved_to_trade || approving}
+          onClick={onApprove}
+        >
+          {approving ? "Approving..." : "Approve to Trade"}
+        </PrimaryButton>
+      }
+    >
+      <div className="mb-4 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+        <div>
+          <p className="text-sm font-medium text-slate-600">Approval status</p>
+          <div className="mt-2 flex flex-wrap items-center gap-2">
+            <StatusBadge status={statusText} />
+            <StatusBadge status={approval.current_status} />
+          </div>
+        </div>
+        {approval.ready_for_approval ? (
+          <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
+            All blocking checks are complete.
+          </p>
+        ) : null}
+      </div>
+
+      <DataTable
+        rows={approval.requirements || []}
+        emptyMessage="No approval checks are available yet."
+        columns={[
+          {
+            key: "label",
+            label: "Check",
+          },
+          {
+            key: "complete",
+            label: "Result",
+            render: (row) => (
+              <span className={`inline-flex items-center gap-1 rounded-full px-2.5 py-1 text-xs font-medium ring-1 ${row.complete ? "bg-emerald-50 text-emerald-700 ring-emerald-200" : "bg-amber-50 text-amber-700 ring-amber-200"}`}>
+                {row.complete ? <CheckCircle2 className="h-3.5 w-3.5" aria-hidden="true" /> : <XCircle className="h-3.5 w-3.5" aria-hidden="true" />}
+                {row.complete ? "Complete" : "Needed"}
+              </span>
+            ),
+          },
+          {
+            key: "detail",
+            label: "Detail",
+            render: (row) => row.detail || "Not set",
+          },
+        ]}
+      />
+    </Card>
   );
 }
 

@@ -152,3 +152,19 @@ class AgentProfileRead(AgentProfileBase):
 
     model_config = ConfigDict(from_attributes=True)
 
+
+class FinalApprovalRequirementRead(BaseModel):
+    key: str
+    label: str
+    complete: bool
+    detail: str | None = None
+
+
+class FinalApprovalStatusRead(BaseModel):
+    agent_id: int
+    agent_name: str
+    current_status: str
+    ready_for_approval: bool
+    approved_to_trade: bool
+    missing_requirements: list[str]
+    requirements: list[FinalApprovalRequirementRead]

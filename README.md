@@ -45,6 +45,7 @@ Each completed phase will be saved as a commit. A commit is like a labelled chec
 - Phase 16: Frontend setup
 - Phase 17: Agent frontend pages
 - Phase 18: Admin frontend pages
+- Phase 19: Final approval workflow
 
 ## Backend
 
@@ -415,3 +416,18 @@ The admin side of the portal now has its own menu and management pages.
 Admins can review the dashboard, agent list, agent detail records, memberships and payments, onboarding progress, training modules, live sessions, attendance logs, document review, compliance dashboard, certificates, audit logs, and settings.
 
 These pages use the backend security rules already built in earlier phases. Admin users can manage records, while agents remain limited to their own portal pages.
+
+## Final Approval Workflow
+
+The final approval workflow is the gate before an agent is allowed to trade.
+
+The backend now checks membership, payment setup, signed agreements, verified ID and proof of address, welcome and compliance call attendance, mandatory training, final assessment, and social media policy acceptance.
+
+Admins can see these checks on the Agent Detail page. When every blocking item is complete, the admin can press Approve to Trade. The system then marks the agent as Approved to Trade, completes the Admin final approval checklist step, and creates an audit log entry.
+
+Supplier Access unlocks when the agent status is Approved to Trade. Marketing Hub access still depends on the social media and advertising policy being accepted.
+
+Final approval endpoints:
+
+- `GET /agents/{id}/final-approval`
+- `POST /agents/{id}/approve-to-trade`

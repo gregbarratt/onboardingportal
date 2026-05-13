@@ -9,7 +9,13 @@ from app.core.roles import ADMIN_ROLE_NAMES
 from app.db.session import get_db
 from app.models.agent_profile import AgentProfile
 from app.models.user import User
-from app.schemas.agent import AgentProfileCreate, AgentProfileRead, AgentProfileUpdate
+from app.schemas.agent import (
+    AgentProfileCreate,
+    AgentProfileRead,
+    AgentProfileUpdate,
+    FinalApprovalStatusRead,
+)
+from app.services.final_approval import approve_agent_to_trade, build_final_approval_status
 
 
 router = APIRouter(prefix="/agents", tags=["Agents"])
@@ -136,6 +142,44 @@ def get_agent_profile(
     return agent_profile
 
 
+@router.get("/{agent_profile_id}/final-approval", response_model=FinalApprovalStatusRead)
+def get_agent_final_approval_status(
+    agent_profile_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> dict:
+    agent_profile = get_agent_or_404(db, agent_profile_id)
+    check_agent_access(agent_profile, current_user)
+    return build_final_approval_status(db, agent_profile)
+
+
+@router.post("/{agent_profile_id}/approve-to-trade", response_model=FinalApprovalStatusRead)
+def approve_agent_final_trade_status(
+    agent_profile_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> dict:
+    if not is_admin_user(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can approve an agent to trade.",
+        )
+
+    agent_profile = get_agent_or_404(db, agent_profile_id)
+    approval_status = build_final_approval_status(db, agent_profile)
+    if approval_status["approved_to_trade"]:
+        return approval_status
+
+    if not approval_status["ready_for_approval"]:
+        missing = ", ".join(approval_status["missing_requirements"])
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"This agent is not ready for final approval yet. Missing: {missing}",
+        )
+
+    return approve_agent_to_trade(db, agent_profile, current_user)
+
+
 @router.put("/{agent_profile_id}", response_model=AgentProfileRead)
 def update_agent_profile(
     agent_profile_id: int,
@@ -174,4 +218,3 @@ def update_agent_profile(
 
     db.refresh(agent_profile)
     return agent_profile
-
