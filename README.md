@@ -37,6 +37,7 @@ Each completed phase will be saved as a commit. A commit is like a labelled chec
 - Phase 8: Further training
 - Phase 9: Live calls and attendance logging
 - Phase 10: Documents and agreements
+- Phase 11: Compliance centre
 
 ## Backend
 
@@ -246,3 +247,19 @@ Document endpoints:
 - `GET /agents/{id}/documents`
 - `POST /documents/{id}/verify`
 - `POST /documents/{id}/reject`
+
+## Compliance Centre
+
+The Compliance Centre keeps proof that agents have seen and accepted important policies.
+
+It stores policies such as customer money handling rules, advertising and social media rules, data protection, GDPR, complaints process, and general compliance rules.
+
+Agents can view published policies, accept them, and see their own compliance status. Admins can create policies and see a compliance dashboard showing missing documents, expired compliance training, agents on compliance hold, and recent policy acceptance records.
+
+Compliance endpoints:
+
+- `GET /compliance/policies`
+- `POST /compliance/policies`
+- `POST /compliance/policies/{id}/accept`
+- `GET /agents/{id}/compliance-status`
+- `GET /admin/compliance-dashboard`
