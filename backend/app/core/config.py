@@ -20,7 +20,7 @@ class Settings(BaseSettings):
     jwt_access_token_expire_minutes: int = 60
     frontend_url: str = "http://localhost:5173"
     upload_dir: Path = BACKEND_DIR / "uploads"
-    max_upload_size_mb: int = 10
+    max_upload_size_mb: int = 100
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
     initial_admin_email: str = ""

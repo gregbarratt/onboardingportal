@@ -15,6 +15,10 @@ from app.models.training import (
     TrainingAssignment,
     TrainingCategory,
     TrainingModule,
+    TrainingQuizAnswer,
+    TrainingQuizAttempt,
+    TrainingQuizOption,
+    TrainingQuizQuestion,
 )
 from app.models.user import User
 
@@ -40,5 +44,9 @@ __all__ = [
     "TrainingAssignment",
     "TrainingCategory",
     "TrainingModule",
+    "TrainingQuizAnswer",
+    "TrainingQuizAttempt",
+    "TrainingQuizOption",
+    "TrainingQuizQuestion",
     "User",
 ]

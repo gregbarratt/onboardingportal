@@ -28,7 +28,7 @@ function TrainingContent({ profile }) {
   }
 
   const progressRows = progress.data || [];
-  const moduleRows = modules.data || [];
+  const moduleRows = (modules.data || []).filter((item) => item.training_track === "Onboarding");
   const mandatoryModules = moduleRows.filter((item) => item.mandatory);
   const completedMandatory = progressRows.filter((item) => item.training_module?.mandatory && item.progress_status === "Complete").length;
   const completedAll = progressRows.filter((item) => item.progress_status === "Complete").length;
@@ -49,7 +49,7 @@ function TrainingContent({ profile }) {
         <ProgressBar value={percentage(completedMandatory, mandatoryModules.length)} label={`${completedMandatory} of ${mandatoryModules.length} mandatory modules complete`} />
       </Card>
 
-      <Card title="Training Modules" description="Open a module to view its training content, video link, PDF link, and quiz requirements.">
+      <Card title="Training Modules" description="Open a module to view the embedded lesson files, written content, and quiz requirements.">
         {moduleRows.length ? (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {moduleRows.map((module) => {

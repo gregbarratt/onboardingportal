@@ -89,6 +89,15 @@ class TrainingModule(Base):
         back_populates="training_module",
         cascade="all, delete-orphan",
     )
+    quiz_questions: Mapped[list[TrainingQuizQuestion]] = relationship(
+        back_populates="training_module",
+        cascade="all, delete-orphan",
+        order_by="TrainingQuizQuestion.sort_order",
+    )
+    quiz_attempts: Mapped[list[TrainingQuizAttempt]] = relationship(
+        back_populates="training_module",
+        cascade="all, delete-orphan",
+    )
 
 
 class TrainingAssignment(Base):
@@ -151,3 +160,87 @@ class AgentTrainingProgress(Base):
     assignment: Mapped[TrainingAssignment] = relationship(back_populates="progress")
     agent: Mapped[AgentProfile] = relationship(back_populates="training_progress")
     training_module: Mapped[TrainingModule] = relationship(back_populates="progress_records")
+
+
+class TrainingQuizQuestion(Base):
+    __tablename__ = "training_quiz_questions"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    training_module_id: Mapped[int] = mapped_column(ForeignKey("training_modules.id"), index=True, nullable=False)
+    question_text: Mapped[str] = mapped_column(Text, nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    training_module: Mapped[TrainingModule] = relationship(back_populates="quiz_questions")
+    options: Mapped[list[TrainingQuizOption]] = relationship(
+        back_populates="question",
+        cascade="all, delete-orphan",
+        order_by="TrainingQuizOption.sort_order",
+    )
+    answers: Mapped[list[TrainingQuizAnswer]] = relationship(back_populates="question")
+
+
+class TrainingQuizOption(Base):
+    __tablename__ = "training_quiz_options"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    question_id: Mapped[int] = mapped_column(ForeignKey("training_quiz_questions.id"), index=True, nullable=False)
+    option_text: Mapped[str] = mapped_column(Text, nullable=False)
+    is_correct: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    sort_order: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    updated_at: Mapped[datetime] = mapped_column(
+        DateTime(timezone=True),
+        server_default=func.now(),
+        onupdate=func.now(),
+        nullable=False,
+    )
+
+    question: Mapped[TrainingQuizQuestion] = relationship(back_populates="options")
+    answers: Mapped[list[TrainingQuizAnswer]] = relationship(back_populates="selected_option")
+
+
+class TrainingQuizAttempt(Base):
+    __tablename__ = "training_quiz_attempts"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    agent_id: Mapped[int] = mapped_column(ForeignKey("agent_profiles.id"), index=True, nullable=False)
+    training_module_id: Mapped[int] = mapped_column(ForeignKey("training_modules.id"), index=True, nullable=False)
+    progress_id: Mapped[int | None] = mapped_column(ForeignKey("agent_training_progress.id"), nullable=True)
+    attempt_number: Mapped[int] = mapped_column(Integer, default=1, nullable=False)
+    score: Mapped[int] = mapped_column(Integer, nullable=False)
+    passed: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+    status: Mapped[str] = mapped_column(String(50), default="Submitted", server_default="Submitted", nullable=False)
+    submitted_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
+    redo_requested_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"), nullable=True)
+    redo_requested_date: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    admin_notes: Mapped[str | None] = mapped_column(Text, nullable=True)
+
+    training_module: Mapped[TrainingModule] = relationship(back_populates="quiz_attempts")
+    agent: Mapped[AgentProfile] = relationship()
+    progress: Mapped[AgentTrainingProgress | None] = relationship()
+    redo_requested_by_user: Mapped[User | None] = relationship(foreign_keys=[redo_requested_by])
+    answers: Mapped[list[TrainingQuizAnswer]] = relationship(
+        back_populates="attempt",
+        cascade="all, delete-orphan",
+    )
+
+
+class TrainingQuizAnswer(Base):
+    __tablename__ = "training_quiz_answers"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    attempt_id: Mapped[int] = mapped_column(ForeignKey("training_quiz_attempts.id"), index=True, nullable=False)
+    question_id: Mapped[int] = mapped_column(ForeignKey("training_quiz_questions.id"), index=True, nullable=False)
+    selected_option_id: Mapped[int] = mapped_column(ForeignKey("training_quiz_options.id"), index=True, nullable=False)
+    is_correct: Mapped[bool] = mapped_column(Boolean, default=False, server_default=false(), nullable=False)
+
+    attempt: Mapped[TrainingQuizAttempt] = relationship(back_populates="answers")
+    question: Mapped[TrainingQuizQuestion] = relationship(back_populates="answers")
+    selected_option: Mapped[TrainingQuizOption] = relationship(back_populates="answers")

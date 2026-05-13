@@ -133,8 +133,9 @@ Training modules can be:
 
 - Mandatory or optional
 - Published or archived
-- Linked to videos, PDFs, or text content
+- Built from uploaded videos, uploaded PDFs, and written text content
 - Given pass marks
+- Given quiz questions with pass or fail results
 - Linked to certificates
 - Set to require renewal
 
@@ -142,7 +143,7 @@ Training modules can be:
 
 Admins can create and edit training modules.
 
-This allows One Travel Club to add more lessons later without creating a separate system.
+This allows One Travel Club to add more lessons later without creating a separate system. Admins can upload training files, write lesson content, create quiz questions, and ask an agent to redo a module if needed.
 
 Further Training uses the same training system.
 

@@ -108,8 +108,8 @@ The Training Academy contains required onboarding lessons.
 Training may include:
 
 - Text lessons
-- Video links
-- PDF links
+- Embedded videos
+- Embedded PDF documents
 - Quizzes
 - Assessments
 - Certificates
@@ -123,9 +123,9 @@ Open a training module to see its content and progress.
 A module may include:
 
 - Description
-- Content link
-- Video link
-- PDF link
+- Written lesson content
+- Embedded video content
+- Embedded PDF content
 - Quiz requirement
 - Pass mark
 - Certificate information

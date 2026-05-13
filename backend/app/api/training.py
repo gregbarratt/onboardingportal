@@ -1,7 +1,12 @@
-from datetime import date
+import base64
+import binascii
+import re
+from datetime import date, datetime, timezone
+from pathlib import Path
+from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from fastapi import APIRouter, Depends, HTTPException, Request, status
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
@@ -12,6 +17,7 @@ from app.core.training import (
     DEFAULT_TRAINING_TRACK,
     FURTHER_TRAINING_TRACK,
 )
+from app.core.config import settings
 from app.db.session import get_db
 from app.models.agent_profile import AgentProfile
 from app.models.training import (
@@ -19,19 +25,35 @@ from app.models.training import (
     TrainingAssignment,
     TrainingCategory,
     TrainingModule,
+    TrainingQuizAnswer,
+    TrainingQuizAttempt,
+    TrainingQuizOption,
+    TrainingQuizQuestion,
 )
 from app.models.user import User
 from app.schemas.training import (
     AgentTrainingProgressRead,
     AgentTrainingProgressUpdate,
+    TrainingCategoryCreate,
+    TrainingCategoryRead,
     TrainingAssignRequest,
+    TrainingMaterialUploadRequest,
     TrainingModuleCreate,
     TrainingModuleRead,
     TrainingModuleUpdate,
+    TrainingQuizAttemptRead,
+    TrainingQuizRead,
+    TrainingQuizSaveRequest,
+    TrainingQuizSubmitRequest,
+    TrainingRedoRequest,
 )
 
 
 router = APIRouter(tags=["Training Academy"])
+
+ALLOWED_VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".webm"}
+ALLOWED_PDF_EXTENSIONS = {".pdf"}
+SAFE_FILENAME_PATTERN = re.compile(r"[^A-Za-z0-9._-]+")
 
 
 def get_category_or_404(db: Session, category_id: int) -> TrainingCategory:
@@ -56,6 +78,80 @@ def get_training_module_or_404(db: Session, module_id: int) -> TrainingModule:
             detail="Training module not found.",
         )
     return training_module
+
+
+def require_admin_user(current_user: User) -> None:
+    if not is_admin_user(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can manage training content.",
+        )
+
+
+def clean_uploaded_filename(filename: str | None) -> str:
+    original_name = Path(filename or "training-file").name
+    cleaned_name = SAFE_FILENAME_PATTERN.sub("_", original_name).strip("._")
+    return cleaned_name or "training-file"
+
+
+def save_training_material_file(
+    training_module_id: int,
+    upload_request: TrainingMaterialUploadRequest,
+) -> tuple[str, str]:
+    original_file_name = clean_uploaded_filename(upload_request.file_name)
+    file_extension = Path(original_file_name).suffix.lower()
+    allowed_extensions = (
+        ALLOWED_VIDEO_EXTENSIONS if upload_request.material_type == "Video" else ALLOWED_PDF_EXTENSIONS
+    )
+
+    if file_extension not in allowed_extensions:
+        allowed = ", ".join(sorted(allowed_extensions))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Please upload one of these file types: {allowed}.",
+        )
+
+    raw_base64_content = upload_request.file_content_base64.strip()
+    if raw_base64_content.startswith("data:") and "," in raw_base64_content:
+        raw_base64_content = raw_base64_content.split(",", 1)[1]
+
+    try:
+        file_bytes = base64.b64decode(raw_base64_content, validate=True)
+    except (binascii.Error, ValueError) as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The uploaded file could not be read.",
+        ) from exc
+
+    if not file_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The uploaded file is empty.",
+        )
+
+    if len(file_bytes) > settings.max_upload_size_bytes:
+        raise HTTPException(
+            status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+            detail=f"Training files must be {settings.max_upload_size_mb}MB or smaller.",
+        )
+
+    module_upload_dir = settings.upload_dir / "training" / f"module-{training_module_id}"
+    module_upload_dir.mkdir(parents=True, exist_ok=True)
+    stored_file_name = f"{uuid4().hex}-{original_file_name}"
+    target_path = module_upload_dir / stored_file_name
+
+    try:
+        target_path.write_bytes(file_bytes)
+    except Exception:
+        target_path.unlink(missing_ok=True)
+        raise
+
+    public_path = f"/uploaded-files/training/module-{training_module_id}/{stored_file_name}"
+    return original_file_name, public_path
+
+
+def build_public_file_url(request: Request, public_path: str) -> str:
+    return f"{str(request.base_url).rstrip('/')}{public_path}"
 
 
 def get_training_progress_or_404(db: Session, progress_id: int) -> AgentTrainingProgress:
@@ -219,6 +315,33 @@ def raise_if_further_training_locked(db: Session, agent_profile: AgentProfile) -
         )
 
 
+@router.get("/training/categories", response_model=list[TrainingCategoryRead])
+def list_training_categories(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> list[TrainingCategory]:
+    require_admin_user(current_user)
+    return list(db.scalars(select(TrainingCategory).order_by(TrainingCategory.name)))
+
+
+@router.post("/training/categories", response_model=TrainingCategoryRead, status_code=status.HTTP_201_CREATED)
+def create_training_category(
+    request: TrainingCategoryCreate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> TrainingCategory:
+    require_admin_user(current_user)
+    existing_category = db.scalar(select(TrainingCategory).where(TrainingCategory.name == request.name))
+    if existing_category is not None:
+        return existing_category
+
+    category = TrainingCategory(name=request.name, description=request.description)
+    db.add(category)
+    db.commit()
+    db.refresh(category)
+    return category
+
+
 @router.get("/training/modules", response_model=list[TrainingModuleRead])
 def list_training_modules(
     db: Session = Depends(get_db),
@@ -299,6 +422,152 @@ def get_training_module(
         agent_profile = get_own_agent_profile_or_404(db, current_user)
         raise_if_further_training_locked(db, agent_profile)
     return training_module
+
+
+@router.post("/training/modules/{module_id}/materials", response_model=TrainingModuleRead)
+def upload_training_material(
+    module_id: int,
+    upload_request: TrainingMaterialUploadRequest,
+    http_request: Request,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> TrainingModule:
+    require_admin_user(current_user)
+    training_module = get_training_module_or_404(db, module_id)
+    _file_name, public_path = save_training_material_file(module_id, upload_request)
+    file_url = build_public_file_url(http_request, public_path)
+
+    if upload_request.material_type == "Video":
+        training_module.video_url = file_url
+    else:
+        training_module.pdf_url = file_url
+
+    if training_module.video_url and training_module.pdf_url:
+        training_module.content_type = "Mixed"
+    else:
+        training_module.content_type = upload_request.material_type
+
+    db.commit()
+    db.refresh(training_module)
+    return get_training_module_or_404(db, training_module.id)
+
+
+def load_quiz_questions(db: Session, module_id: int) -> list[TrainingQuizQuestion]:
+    return list(
+        db.scalars(
+            select(TrainingQuizQuestion)
+            .options(selectinload(TrainingQuizQuestion.options))
+            .where(TrainingQuizQuestion.training_module_id == module_id)
+            .order_by(TrainingQuizQuestion.sort_order)
+        )
+    )
+
+
+def validate_quiz_questions(request: TrainingQuizSaveRequest) -> None:
+    for index, question in enumerate(request.questions, start=1):
+        if len(question.options) < 2:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Question {index} needs at least two answer options.",
+            )
+        if not any(option.is_correct for option in question.options):
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail=f"Question {index} needs one correct answer.",
+            )
+
+
+@router.get("/training/modules/{module_id}/quiz", response_model=TrainingQuizRead)
+def get_training_quiz(
+    module_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> dict:
+    training_module = get_training_module_or_404(db, module_id)
+    if not is_admin_user(current_user) and training_module.published_status != "Published":
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="This training module is not published.",
+        )
+    if not is_admin_user(current_user) and training_module.training_track == FURTHER_TRAINING_TRACK:
+        agent_profile = get_own_agent_profile_or_404(db, current_user)
+        raise_if_further_training_locked(db, agent_profile)
+
+    questions = load_quiz_questions(db, module_id)
+    if not is_admin_user(current_user):
+        questions = [
+            {
+                "id": question.id,
+                "training_module_id": question.training_module_id,
+                "question_text": question.question_text,
+                "sort_order": question.sort_order,
+                "options": [
+                    {
+                        "id": option.id,
+                        "question_id": option.question_id,
+                        "option_text": option.option_text,
+                        "is_correct": False,
+                        "sort_order": option.sort_order,
+                    }
+                    for option in question.options
+                ],
+            }
+            for question in questions
+        ]
+
+    return {
+        "training_module_id": training_module.id,
+        "pass_mark": training_module.pass_mark,
+        "quiz_required": training_module.quiz_required,
+        "questions": questions,
+    }
+
+
+@router.put("/training/modules/{module_id}/quiz", response_model=TrainingQuizRead)
+def save_training_quiz(
+    module_id: int,
+    request: TrainingQuizSaveRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> dict:
+    require_admin_user(current_user)
+    training_module = get_training_module_or_404(db, module_id)
+    validate_quiz_questions(request)
+
+    for existing_question in load_quiz_questions(db, module_id):
+        db.delete(existing_question)
+    db.flush()
+
+    for question_index, question in enumerate(request.questions, start=1):
+        quiz_question = TrainingQuizQuestion(
+            training_module_id=training_module.id,
+            question_text=question.question_text,
+            sort_order=question_index,
+        )
+        db.add(quiz_question)
+        db.flush()
+
+        for option_index, option in enumerate(question.options, start=1):
+            db.add(
+                TrainingQuizOption(
+                    question_id=quiz_question.id,
+                    option_text=option.option_text,
+                    is_correct=option.is_correct,
+                    sort_order=option_index,
+                )
+            )
+
+    training_module.quiz_required = bool(request.questions)
+    if training_module.quiz_required and training_module.pass_mark is None:
+        training_module.pass_mark = 80
+
+    db.commit()
+    return {
+        "training_module_id": training_module.id,
+        "pass_mark": training_module.pass_mark,
+        "quiz_required": training_module.quiz_required,
+        "questions": load_quiz_questions(db, module_id),
+    }
 
 
 @router.put("/training/modules/{module_id}", response_model=TrainingModuleRead)
@@ -434,6 +703,145 @@ def list_agent_training(
     )
 
 
+def get_agent_module_progress(
+    db: Session,
+    agent_profile: AgentProfile,
+    training_module: TrainingModule,
+) -> AgentTrainingProgress:
+    ensure_training_assignment(db, agent_profile, training_module)
+    db.commit()
+    progress = db.scalar(
+        select(AgentTrainingProgress).where(
+            AgentTrainingProgress.agent_id == agent_profile.id,
+            AgentTrainingProgress.training_module_id == training_module.id,
+        )
+    )
+    if progress is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="Training progress could not be loaded.",
+        )
+    return progress
+
+
+@router.get("/training/modules/{module_id}/quiz/attempts", response_model=list[TrainingQuizAttemptRead])
+def list_my_training_quiz_attempts(
+    module_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> list[TrainingQuizAttempt]:
+    training_module = get_training_module_or_404(db, module_id)
+    agent_profile = get_own_agent_profile_or_404(db, current_user)
+    if training_module.training_track == FURTHER_TRAINING_TRACK:
+        raise_if_further_training_locked(db, agent_profile)
+
+    return list(
+        db.scalars(
+            select(TrainingQuizAttempt)
+            .options(selectinload(TrainingQuizAttempt.answers))
+            .where(
+                TrainingQuizAttempt.agent_id == agent_profile.id,
+                TrainingQuizAttempt.training_module_id == training_module.id,
+            )
+            .order_by(TrainingQuizAttempt.attempt_number.desc())
+        )
+    )
+
+
+@router.post("/training/modules/{module_id}/quiz/attempts", response_model=TrainingQuizAttemptRead)
+def submit_training_quiz_attempt(
+    module_id: int,
+    request: TrainingQuizSubmitRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> TrainingQuizAttempt:
+    training_module = get_training_module_or_404(db, module_id)
+    agent_profile = get_own_agent_profile_or_404(db, current_user)
+    if training_module.training_track == FURTHER_TRAINING_TRACK:
+        raise_if_further_training_locked(db, agent_profile)
+
+    questions = load_quiz_questions(db, training_module.id)
+    if not questions:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This module does not have a quiz yet.",
+        )
+
+    selected_by_question_id = {
+        answer.question_id: answer.selected_option_id
+        for answer in request.answers
+    }
+    missing_questions = [question for question in questions if question.id not in selected_by_question_id]
+    if missing_questions:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Please answer every quiz question before submitting.",
+        )
+
+    correct_count = 0
+    answers_to_create = []
+    for question in questions:
+        option_by_id = {option.id: option for option in question.options}
+        selected_option = option_by_id.get(selected_by_question_id[question.id])
+        if selected_option is None:
+            raise HTTPException(
+                status_code=status.HTTP_400_BAD_REQUEST,
+                detail="One of the selected answers does not belong to this quiz.",
+            )
+        is_correct = selected_option.is_correct
+        correct_count += 1 if is_correct else 0
+        answers_to_create.append((question.id, selected_option.id, is_correct))
+
+    score = round((correct_count / len(questions)) * 100)
+    pass_mark = training_module.pass_mark or 80
+    passed = score >= pass_mark
+    progress = get_agent_module_progress(db, agent_profile, training_module)
+
+    previous_attempt_count = db.scalar(
+        select(func.count(TrainingQuizAttempt.id)).where(
+            TrainingQuizAttempt.agent_id == agent_profile.id,
+            TrainingQuizAttempt.training_module_id == training_module.id,
+        )
+    ) or 0
+    attempt = TrainingQuizAttempt(
+        agent_id=agent_profile.id,
+        training_module_id=training_module.id,
+        progress_id=progress.id,
+        attempt_number=previous_attempt_count + 1,
+        score=score,
+        passed=passed,
+        status="Passed" if passed else "Failed",
+    )
+    db.add(attempt)
+    db.flush()
+
+    for question_id, selected_option_id, is_correct in answers_to_create:
+        db.add(
+            TrainingQuizAnswer(
+                attempt_id=attempt.id,
+                question_id=question_id,
+                selected_option_id=selected_option_id,
+                is_correct=is_correct,
+            )
+        )
+
+    if progress.started_date is None:
+        progress.started_date = date.today()
+    progress.score = score
+    progress.passed = passed
+    progress.progress_status = "Complete" if passed else "Failed"
+    progress.completed_date = date.today() if passed else None
+    if passed and training_module.certificate_issued:
+        progress.certificate_issued = True
+
+    db.commit()
+    return db.scalar(
+        select(TrainingQuizAttempt)
+        .options(selectinload(TrainingQuizAttempt.answers))
+        .where(TrainingQuizAttempt.id == attempt.id)
+    )
+
+
 @router.put("/agents/{agent_profile_id}/training/{progress_id}", response_model=AgentTrainingProgressRead)
 def update_agent_training_progress(
     agent_profile_id: int,
@@ -479,6 +887,49 @@ def update_agent_training_progress(
 
     for field, value in update_data.items():
         setattr(progress, field, value)
+
+    db.commit()
+    db.refresh(progress)
+    return get_training_progress_or_404(db, progress.id)
+
+
+@router.post("/agents/{agent_profile_id}/training/{progress_id}/redo", response_model=AgentTrainingProgressRead)
+def request_training_redo(
+    agent_profile_id: int,
+    progress_id: int,
+    request: TrainingRedoRequest | None = None,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> AgentTrainingProgress:
+    require_admin_user(current_user)
+    agent_profile = get_agent_or_404(db, agent_profile_id)
+    progress = get_training_progress_or_404(db, progress_id)
+    if progress.agent_id != agent_profile.id:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Training progress item not found for this agent.",
+        )
+
+    progress.progress_status = "In Progress"
+    progress.completed_date = None
+    progress.passed = False
+    if request is not None and request.notes:
+        progress.notes = request.notes
+
+    latest_attempt = db.scalar(
+        select(TrainingQuizAttempt)
+        .where(
+            TrainingQuizAttempt.agent_id == agent_profile.id,
+            TrainingQuizAttempt.training_module_id == progress.training_module_id,
+        )
+        .order_by(TrainingQuizAttempt.attempt_number.desc())
+    )
+    if latest_attempt is not None:
+        latest_attempt.status = "Redo Requested"
+        latest_attempt.redo_requested_by = current_user.id
+        latest_attempt.redo_requested_date = datetime.now(timezone.utc)
+        if request is not None and request.notes:
+            latest_attempt.admin_notes = request.notes
 
     db.commit()
     db.refresh(progress)

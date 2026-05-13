@@ -4,6 +4,7 @@ from sqlalchemy.orm import Session
 from app.core.config import settings
 from app.core.roles import DEFAULT_ROLES
 from app.db.session import SessionLocal
+from app.db.seed_reference_data import seed_reference_data
 from app.models.role import Role
 from app.models.user import User
 from app.services.passwords import hash_password
@@ -40,9 +41,11 @@ def create_initial_admin() -> None:
 
     with SessionLocal() as db:
         roles = ensure_roles(db)
+        seed_reference_data(db)
         existing_user = db.scalar(select(User).where(User.email == email))
 
         if existing_user is not None:
+            db.commit()
             print(f"Initial admin already exists: {email}")
             return
 

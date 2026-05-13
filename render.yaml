@@ -30,7 +30,7 @@ services:
       - key: UPLOAD_DIR
         value: /opt/render/project/src/backend/uploads
       - key: MAX_UPLOAD_SIZE_MB
-        value: "10"
+        value: "100"
       - key: INITIAL_ADMIN_EMAIL
         value: admin@onetravelclub.co.uk
       - key: INITIAL_ADMIN_PASSWORD

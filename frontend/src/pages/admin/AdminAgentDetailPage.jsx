@@ -1,4 +1,4 @@
-import { CheckCircle2, MessageSquarePlus, Save, ShieldCheck, XCircle } from "lucide-react";
+import { CheckCircle2, MessageSquarePlus, RotateCcw, Save, ShieldCheck, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
@@ -9,6 +9,7 @@ import {
   FormField,
   LoadingState,
   PrimaryButton,
+  SecondaryButton,
   SelectInput,
   StatusBadge,
   TextArea,
@@ -35,11 +36,17 @@ export default function AdminAgentDetailPage() {
     enabled: Boolean(agentId),
     fallbackError: "We could not load the final approval checks.",
   });
+  const trainingProgress = useApiResource(agentId ? `/agents/${agentId}/training` : "", {
+    enabled: Boolean(agentId),
+    initialData: [],
+    fallbackError: "We could not load this agent's training results.",
+  });
   const [form, setForm] = useState({});
   const [note, setNote] = useState("");
   const [saving, setSaving] = useState(false);
   const [addingNote, setAddingNote] = useState(false);
   const [approving, setApproving] = useState(false);
+  const [redoingTrainingId, setRedoingTrainingId] = useState(null);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -116,6 +123,26 @@ export default function AdminAgentDetailPage() {
     }
   }
 
+  async function requestTrainingRedo(progressId) {
+    setRedoingTrainingId(progressId);
+    setError("");
+    setMessage("");
+
+    try {
+      await apiClient.post(
+        `/agents/${agentId}/training/${progressId}/redo`,
+        { notes: "Admin requested this training module to be completed again." },
+        token,
+      );
+      await trainingProgress.reload();
+      setMessage("Training redo requested.");
+    } catch (err) {
+      setError(getFriendlyError(err, "We could not request this training redo."));
+    } finally {
+      setRedoingTrainingId(null);
+    }
+  }
+
   if (agent.loading) {
     return (
       <AdminPageShell title="Agent Detail" description="Loading the selected agent.">
@@ -133,7 +160,7 @@ export default function AdminAgentDetailPage() {
       actions={<AdminLinkButton to="/admin/agents">Back to agents</AdminLinkButton>}
     >
       <div className="space-y-6">
-        <ErrorBanner message={agent.error || notes.error || finalApproval.error || error} />
+        <ErrorBanner message={agent.error || notes.error || finalApproval.error || trainingProgress.error || error} />
         {message ? <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-700">{message}</div> : null}
 
         {selectedAgent ? (
@@ -170,6 +197,13 @@ export default function AdminAgentDetailPage() {
           loading={finalApproval.loading}
           approving={approving}
           onApprove={approveToTrade}
+        />
+
+        <TrainingProgressCard
+          rows={trainingProgress.data || []}
+          loading={trainingProgress.loading}
+          redoingTrainingId={redoingTrainingId}
+          onRedo={requestTrainingRedo}
         />
 
         <form onSubmit={saveAgent}>
@@ -256,6 +290,70 @@ export default function AdminAgentDetailPage() {
         </div>
       </div>
     </AdminPageShell>
+  );
+}
+
+function TrainingProgressCard({ rows, loading, redoingTrainingId, onRedo }) {
+  if (loading) {
+    return (
+      <Card title="Training Results" description="The portal is loading this agent's module progress and quiz results.">
+        <LoadingState message="Loading training results..." />
+      </Card>
+    );
+  }
+
+  return (
+    <Card title="Training Results" description="Admins can see pass/fail scores and ask the agent to redo a module.">
+      <DataTable
+        rows={rows}
+        emptyMessage="No training records are available yet."
+        columns={[
+          {
+            key: "module",
+            label: "Module",
+            render: (row) => row.training_module?.title || "Training module",
+          },
+          {
+            key: "progress_status",
+            label: "Status",
+            render: (row) => <StatusBadge status={row.progress_status} />,
+          },
+          {
+            key: "score",
+            label: "Score",
+            render: (row) => (row.score === null || row.score === undefined ? "Not scored" : `${row.score}%`),
+          },
+          {
+            key: "passed",
+            label: "Result",
+            render: (row) => {
+              if (row.passed === true) return <StatusBadge status="Passed" />;
+              if (row.passed === false) return <StatusBadge status="Failed" />;
+              return <StatusBadge status="Not attempted" />;
+            },
+          },
+          {
+            key: "notes",
+            label: "Notes",
+            render: (row) => row.notes || "Not set",
+          },
+          {
+            key: "actions",
+            label: "Actions",
+            render: (row) => (
+              <SecondaryButton
+                type="button"
+                icon={RotateCcw}
+                disabled={redoingTrainingId === row.id}
+                onClick={() => onRedo(row.id)}
+              >
+                {redoingTrainingId === row.id ? "Requesting..." : "Ask to redo"}
+              </SecondaryButton>
+            ),
+          },
+        ]}
+      />
+    </Card>
   );
 }
 

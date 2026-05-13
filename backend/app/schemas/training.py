@@ -31,6 +31,24 @@ class TrainingCategoryRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class TrainingCategoryCreate(BaseModel):
+    name: str = Field(min_length=1, max_length=100)
+    description: str | None = None
+
+    @field_validator("name")
+    @classmethod
+    def name_must_not_be_blank(cls, value: str) -> str:
+        cleaned = clean_required_text(value)
+        if not cleaned:
+            raise ValueError("Category name is required.")
+        return cleaned
+
+    @field_validator("description")
+    @classmethod
+    def description_can_be_blank(cls, value: str | None) -> str | None:
+        return clean_optional_text(value)
+
+
 class TrainingModuleCreate(BaseModel):
     title: str = Field(min_length=1, max_length=255)
     description: str | None = None
@@ -256,3 +274,114 @@ class AgentTrainingProgressRead(BaseModel):
     assignment: TrainingAssignmentRead
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class TrainingMaterialUploadRequest(BaseModel):
+    material_type: str = Field(pattern="^(Video|PDF)$")
+    file_name: str = Field(min_length=1, max_length=255)
+    file_content_base64: str = Field(min_length=1)
+
+
+class TrainingQuizOptionInput(BaseModel):
+    id: int | None = None
+    option_text: str = Field(min_length=1)
+    is_correct: bool = False
+
+    @field_validator("option_text")
+    @classmethod
+    def option_must_not_be_blank(cls, value: str) -> str:
+        cleaned = clean_required_text(value)
+        if not cleaned:
+            raise ValueError("Option text is required.")
+        return cleaned
+
+
+class TrainingQuizQuestionInput(BaseModel):
+    id: int | None = None
+    question_text: str = Field(min_length=1)
+    options: list[TrainingQuizOptionInput] = Field(default_factory=list)
+
+    @field_validator("question_text")
+    @classmethod
+    def question_must_not_be_blank(cls, value: str) -> str:
+        cleaned = clean_required_text(value)
+        if not cleaned:
+            raise ValueError("Question text is required.")
+        return cleaned
+
+
+class TrainingQuizSaveRequest(BaseModel):
+    questions: list[TrainingQuizQuestionInput] = Field(default_factory=list)
+
+
+class TrainingQuizOptionRead(BaseModel):
+    id: int
+    question_id: int
+    option_text: str
+    is_correct: bool = False
+    sort_order: int
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TrainingQuizQuestionRead(BaseModel):
+    id: int
+    training_module_id: int
+    question_text: str
+    sort_order: int
+    options: list[TrainingQuizOptionRead] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TrainingQuizRead(BaseModel):
+    training_module_id: int
+    pass_mark: int | None = None
+    quiz_required: bool
+    questions: list[TrainingQuizQuestionRead] = Field(default_factory=list)
+
+
+class TrainingQuizAnswerSubmit(BaseModel):
+    question_id: int
+    selected_option_id: int
+
+
+class TrainingQuizSubmitRequest(BaseModel):
+    answers: list[TrainingQuizAnswerSubmit] = Field(default_factory=list)
+
+
+class TrainingQuizAnswerRead(BaseModel):
+    id: int
+    attempt_id: int
+    question_id: int
+    selected_option_id: int
+    is_correct: bool
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TrainingQuizAttemptRead(BaseModel):
+    id: int
+    agent_id: int
+    training_module_id: int
+    progress_id: int | None = None
+    attempt_number: int
+    score: int
+    passed: bool
+    status: str
+    submitted_at: datetime
+    redo_requested_by: int | None = None
+    redo_requested_date: datetime | None = None
+    admin_notes: str | None = None
+    answers: list[TrainingQuizAnswerRead] = Field(default_factory=list)
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class TrainingRedoRequest(BaseModel):
+    notes: str | None = None
+
+    @field_validator("notes")
+    @classmethod
+    def notes_can_be_blank(cls, value: str | None) -> str | None:
+        return clean_optional_text(value)

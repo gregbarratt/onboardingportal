@@ -27,6 +27,10 @@ from app.models import (  # noqa: F401
     TrainingAssignment,
     TrainingCategory,
     TrainingModule,
+    TrainingQuizAnswer,
+    TrainingQuizAttempt,
+    TrainingQuizOption,
+    TrainingQuizQuestion,
     User,
 )
 
