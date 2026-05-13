@@ -124,6 +124,31 @@ class StripeInvoiceSyncResponse(BaseModel):
     invoices: list[StripeInvoiceRead]
 
 
+class StripeCustomerCandidateRead(BaseModel):
+    stripe_customer_id: str
+    name: str | None = None
+    email: str | None = None
+    phone: str | None = None
+    created: date | None = None
+    livemode: bool = False
+    delinquent: bool = False
+    invoice_prefix: str | None = None
+    match_reason: str
+    match_score: int
+
+
+class StripeCustomerLinkRequest(BaseModel):
+    stripe_customer_id: str = Field(min_length=1, max_length=255)
+
+    @field_validator("stripe_customer_id")
+    @classmethod
+    def customer_id_must_not_be_blank(cls, value: str) -> str:
+        cleaned = clean_required_text(value)
+        if not cleaned:
+            raise ValueError("Stripe customer ID is required.")
+        return cleaned
+
+
 class StripeSubscriptionRead(BaseModel):
     stripe_subscription_id: str
     status: str

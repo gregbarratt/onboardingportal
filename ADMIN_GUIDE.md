@@ -360,6 +360,8 @@ Stripe can now be connected for customer and invoice visibility.
 This version includes:
 
 - Creating a Stripe customer from an agent profile
+- Searching Stripe for an existing customer by agent name and email
+- Linking the correct Stripe customer to the agent
 - Saving Stripe customer and subscription IDs
 - Syncing live subscription status into membership status
 - Syncing Stripe invoices into portal payment records

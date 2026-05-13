@@ -1,4 +1,4 @@
-import { Plus, RefreshCw, Save, UserPlus } from "lucide-react";
+import { Link2, Plus, RefreshCw, Save, Search, UserPlus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
@@ -96,6 +96,91 @@ function MembershipOverview() {
   );
 }
 
+function StripeCustomerSearchCard({
+  agent,
+  matches,
+  searchDone,
+  searching,
+  linkingStripeCustomerId,
+  linkedCustomerId,
+  onSearch,
+  onLink,
+}) {
+  const searchSummary = buildStripeSearchSummary(agent);
+  const rows = matches.map((match) => ({ ...match, id: match.stripe_customer_id }));
+
+  return (
+    <Card
+      title="Find Existing Stripe Customer"
+      description="Search Stripe using this agent's name and email details, then link the correct customer record."
+      actions={
+        <SecondaryButton type="button" icon={Search} disabled={searching} onClick={onSearch}>
+          {searching ? "Searching Stripe..." : "Search by name and email"}
+        </SecondaryButton>
+      }
+    >
+      <div className="mb-4 rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-700">
+        <p className="font-semibold text-slate-900">Search details</p>
+        <p className="mt-1">{searchSummary}</p>
+      </div>
+
+      {searchDone && !rows.length ? (
+        <p className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+          No Stripe customer match was found. You can create a new Stripe customer or paste a known Stripe customer ID below.
+        </p>
+      ) : null}
+
+      {rows.length ? (
+        <DataTable
+          rows={rows}
+          columns={[
+            { key: "name", label: "Stripe name" },
+            { key: "email", label: "Stripe email" },
+            { key: "stripe_customer_id", label: "Customer ID" },
+            { key: "match_reason", label: "Why it matched" },
+            { key: "created", label: "Created", render: (row) => formatDate(row.created) },
+            {
+              key: "status",
+              label: "Status",
+              render: (row) => <StatusBadge status={row.delinquent ? "Payment issue" : row.livemode ? "Live customer" : "Test customer"} />,
+            },
+            {
+              key: "actions",
+              label: "Action",
+              render: (row) =>
+                row.stripe_customer_id === linkedCustomerId ? (
+                  <StatusBadge status="Linked" />
+                ) : (
+                  <SecondaryButton
+                    type="button"
+                    icon={Link2}
+                    disabled={Boolean(linkingStripeCustomerId)}
+                    onClick={() => onLink(row.stripe_customer_id)}
+                  >
+                    {linkingStripeCustomerId === row.stripe_customer_id ? "Linking..." : "Link"}
+                  </SecondaryButton>
+                ),
+            },
+          ]}
+        />
+      ) : null}
+    </Card>
+  );
+}
+
+function buildStripeSearchSummary(agent) {
+  if (!agent) {
+    return "Agent details are loading.";
+  }
+
+  const name = buildAgentName(agent);
+  const emails = [agent.personal_email, agent.email, agent.company_email]
+    .filter(Boolean)
+    .filter((email, index, list) => list.findIndex((item) => item.toLowerCase() === email.toLowerCase()) === index);
+
+  return `${name}; emails checked: ${emails.length ? emails.join(", ") : "none added yet"}.`;
+}
+
 function MembershipDetail({ agentId }) {
   const { token } = useAuth();
   const agent = useAgent(agentId);
@@ -111,6 +196,10 @@ function MembershipDetail({ agentId }) {
   const [saving, setSaving] = useState(false);
   const [addingPayment, setAddingPayment] = useState(false);
   const [stripeBusy, setStripeBusy] = useState(false);
+  const [stripeSearching, setStripeSearching] = useState(false);
+  const [stripeMatches, setStripeMatches] = useState([]);
+  const [stripeSearchDone, setStripeSearchDone] = useState(false);
+  const [linkingStripeCustomerId, setLinkingStripeCustomerId] = useState("");
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -213,6 +302,52 @@ function MembershipDetail({ agentId }) {
     }
   }
 
+  async function searchStripeCustomers() {
+    setStripeSearching(true);
+    setStripeSearchDone(false);
+    setError("");
+    setMessage("");
+
+    try {
+      const result = await apiClient.get(`/agents/${agentId}/stripe/customers/search`, token);
+      setStripeMatches(result || []);
+      setStripeSearchDone(true);
+      setMessage(`${result?.length || 0} possible Stripe customer match${result?.length === 1 ? "" : "es"} found.`);
+    } catch (err) {
+      setError(getFriendlyError(err, "We could not search Stripe customers."));
+    } finally {
+      setStripeSearching(false);
+    }
+  }
+
+  async function linkStripeCustomer(stripeCustomerId) {
+    setLinkingStripeCustomerId(stripeCustomerId);
+    setError("");
+    setMessage("");
+
+    try {
+      await apiClient.post(
+        `/agents/${agentId}/stripe/customer/link`,
+        { stripe_customer_id: stripeCustomerId },
+        token,
+      );
+      const [invoiceResult, subscriptionResult] = await Promise.all([
+        apiClient.post(`/agents/${agentId}/stripe/invoices/sync`, {}, token),
+        apiClient.post(`/agents/${agentId}/stripe/subscriptions/sync`, {}, token),
+      ]);
+      await Promise.all([membership.reload(), payments.reload()]);
+      setMessage(
+        `Stripe customer linked. ${invoiceResult.synced_count || 0} invoice record${invoiceResult.synced_count === 1 ? "" : "s"} synced${
+          subscriptionResult.synced ? ", and subscription status updated." : "."
+        }`,
+      );
+    } catch (err) {
+      setError(getFriendlyError(err, "We could not link this Stripe customer."));
+    } finally {
+      setLinkingStripeCustomerId("");
+    }
+  }
+
   async function syncStripeInvoices() {
     setStripeBusy(true);
     setError("");
@@ -269,6 +404,17 @@ function MembershipDetail({ agentId }) {
         <ErrorBanner message={agent.error || error} />
         {membership.error ? <ErrorBanner message={membership.error} /> : null}
         {message ? <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-700">{message}</div> : null}
+
+        <StripeCustomerSearchCard
+          agent={agent.data}
+          matches={stripeMatches}
+          searchDone={stripeSearchDone}
+          searching={stripeSearching}
+          linkingStripeCustomerId={linkingStripeCustomerId}
+          linkedCustomerId={membershipForm.stripe_customer_id}
+          onSearch={searchStripeCustomers}
+          onLink={linkStripeCustomer}
+        />
 
         <form onSubmit={saveMembership}>
           <Card

@@ -91,6 +91,67 @@ def retrieve_stripe_customer(customer_id: str) -> dict[str, Any]:
     return stripe_object_to_dict(customer)
 
 
+def search_stripe_customers_for_agent(agent_profile: AgentProfile, limit: int = 10) -> list[dict[str, Any]]:
+    ensure_stripe_ready()
+    safe_limit = min(max(limit, 1), 20)
+    candidates: dict[str, dict[str, Any]] = {}
+
+    def add_customer(customer: dict[str, Any], *, reason: str, score: int) -> None:
+        customer_id = text_or_none(customer.get("id"))
+        if not customer_id:
+            return
+
+        existing = candidates.get(customer_id)
+        row = stripe_customer_to_candidate(customer, reason=reason, score=score)
+        if existing is None:
+            candidates[customer_id] = row
+            return
+
+        reasons = {part.strip() for part in existing["match_reason"].split(";") if part.strip()}
+        reasons.add(reason)
+        existing["match_reason"] = "; ".join(sorted(reasons))
+        existing["match_score"] = max(existing["match_score"], score)
+
+    for email in agent_billing_email_candidates(agent_profile):
+        try:
+            response = stripe_sdk.Customer.list(email=email, limit=safe_limit)
+        except Exception as exc:  # pragma: no cover - depends on Stripe API/network
+            raise StripeIntegrationError(f"Stripe customers could not be searched by email: {exc}") from exc
+
+        for customer in stripe_response_data(response):
+            customer_dict = stripe_object_to_dict(customer)
+            score = 100 if str(customer_dict.get("email") or "").lower() == email.lower() else 90
+            add_customer(customer_dict, reason=f"Email match: {email}", score=score)
+
+    search_terms = []
+    full_name = agent_full_name(agent_profile)
+    if full_name:
+        search_terms.append(f"name:'{stripe_search_value(full_name)}'")
+    for email in agent_billing_email_candidates(agent_profile):
+        search_terms.append(f"email:'{stripe_search_value(email)}'")
+
+    search_error: Exception | None = None
+    if search_terms and hasattr(stripe_sdk.Customer, "search"):
+        try:
+            response = stripe_sdk.Customer.search(query=" OR ".join(search_terms), limit=safe_limit)
+            for customer in stripe_response_data(response):
+                customer_dict = stripe_object_to_dict(customer)
+                reason = stripe_customer_match_reason(customer_dict, agent_profile)
+                score = stripe_customer_match_score(customer_dict, agent_profile)
+                add_customer(customer_dict, reason=reason, score=score)
+        except Exception as exc:  # pragma: no cover - depends on Stripe API/network
+            search_error = exc
+
+    if not candidates and search_error is not None:
+        raise StripeIntegrationError(f"Stripe customers could not be searched by name: {search_error}") from search_error
+
+    return sorted(
+        candidates.values(),
+        key=lambda customer: (customer["match_score"], customer["created"] or date.min),
+        reverse=True,
+    )
+
+
 def list_stripe_invoices(customer_id: str, limit: int = 20) -> list[dict[str, Any]]:
     ensure_stripe_ready()
     try:
@@ -675,6 +736,92 @@ def map_invoice_status_to_payment_status(status: object) -> str:
 
 def billing_email_for_agent(agent_profile: AgentProfile) -> str:
     return agent_profile.personal_email or agent_profile.email
+
+
+def agent_full_name(agent_profile: AgentProfile) -> str:
+    return f"{agent_profile.first_name} {agent_profile.last_name}".strip()
+
+
+def agent_billing_email_candidates(agent_profile: AgentProfile) -> list[str]:
+    emails = [
+        agent_profile.personal_email,
+        agent_profile.email,
+        agent_profile.company_email,
+    ]
+    unique_emails: list[str] = []
+    seen: set[str] = set()
+    for email in emails:
+        cleaned = text_or_none(email)
+        if not cleaned:
+            continue
+        key = cleaned.lower()
+        if key in seen:
+            continue
+        unique_emails.append(cleaned)
+        seen.add(key)
+    return unique_emails
+
+
+def stripe_search_value(value: str) -> str:
+    return value.replace("\\", "\\\\").replace("'", "\\'")
+
+
+def stripe_response_data(response: Any) -> list[Any]:
+    if hasattr(response, "get"):
+        data = response.get("data", [])
+    else:
+        data = getattr(response, "data", [])
+    return list(data or [])
+
+
+def stripe_customer_to_candidate(customer: dict[str, Any], *, reason: str, score: int) -> dict[str, Any]:
+    return {
+        "stripe_customer_id": text_or_none(customer.get("id")) or "",
+        "name": text_or_none(customer.get("name")),
+        "email": text_or_none(customer.get("email")),
+        "phone": text_or_none(customer.get("phone")),
+        "created": date_from_timestamp(customer.get("created")),
+        "livemode": bool(customer.get("livemode")),
+        "delinquent": bool(customer.get("delinquent")),
+        "invoice_prefix": text_or_none(customer.get("invoice_prefix")),
+        "match_reason": reason,
+        "match_score": score,
+    }
+
+
+def stripe_customer_match_reason(customer: dict[str, Any], agent_profile: AgentProfile) -> str:
+    customer_email = str(customer.get("email") or "").lower()
+    customer_name = str(customer.get("name") or "").lower()
+    reasons: list[str] = []
+
+    for email in agent_billing_email_candidates(agent_profile):
+        if customer_email == email.lower():
+            reasons.append(f"Email match: {email}")
+
+    full_name = agent_full_name(agent_profile)
+    if full_name and customer_name == full_name.lower():
+        reasons.append(f"Name match: {full_name}")
+    elif full_name and full_name.lower() in customer_name:
+        reasons.append(f"Possible name match: {full_name}")
+
+    return "; ".join(reasons) or "Possible Stripe match"
+
+
+def stripe_customer_match_score(customer: dict[str, Any], agent_profile: AgentProfile) -> int:
+    customer_email = str(customer.get("email") or "").lower()
+    customer_name = str(customer.get("name") or "").lower()
+    score = 50
+
+    if any(customer_email == email.lower() for email in agent_billing_email_candidates(agent_profile)):
+        score = max(score, 100)
+
+    full_name = agent_full_name(agent_profile).lower()
+    if full_name and customer_name == full_name:
+        score = max(score, 90)
+    elif full_name and full_name in customer_name:
+        score = max(score, 75)
+
+    return score
 
 
 def invoice_amount_for_portal_payment(invoice: dict[str, Any]) -> Decimal:

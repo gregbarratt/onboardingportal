@@ -22,6 +22,8 @@ from app.schemas.membership import (
     MembershipUpdate,
     PaymentCreate,
     PaymentRead,
+    StripeCustomerCandidateRead,
+    StripeCustomerLinkRequest,
     StripeInvoiceRead,
     StripeInvoiceSyncResponse,
     StripeSubscriptionRead,
@@ -33,6 +35,8 @@ from app.services.stripe import (
     create_stripe_customer,
     list_stripe_invoices,
     list_stripe_subscriptions,
+    retrieve_stripe_customer,
+    search_stripe_customers_for_agent,
     sync_stripe_invoices_for_membership,
     sync_stripe_subscription_for_membership,
 )
@@ -236,6 +240,92 @@ def create_or_link_stripe_customer(
         raise HTTPException(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="Stripe customer could not be saved because it conflicts with an existing record.",
+        ) from None
+
+    db.refresh(membership)
+    return membership
+
+
+@router.get("/{agent_profile_id}/stripe/customers/search", response_model=list[StripeCustomerCandidateRead])
+def search_agent_stripe_customers(
+    agent_profile_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> list[dict]:
+    if not is_admin_user(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can search Stripe customers.",
+        )
+
+    agent_profile = get_agent_or_404(db, agent_profile_id)
+    try:
+        return search_stripe_customers_for_agent(agent_profile)
+    except StripeIntegrationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+
+@router.post("/{agent_profile_id}/stripe/customer/link", response_model=MembershipRead)
+def link_existing_stripe_customer(
+    agent_profile_id: int,
+    request: StripeCustomerLinkRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> Membership:
+    if not is_admin_user(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can link an agent to Stripe.",
+        )
+
+    agent_profile = get_agent_or_404(db, agent_profile_id)
+    membership = get_or_create_membership_for_agent(db, agent_profile)
+
+    existing_membership = db.scalar(
+        select(Membership).where(
+            Membership.stripe_customer_id == request.stripe_customer_id,
+            Membership.agent_id != agent_profile.id,
+        )
+    )
+    if existing_membership is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This Stripe customer is already linked to another agent.",
+        )
+
+    try:
+        customer = retrieve_stripe_customer(request.stripe_customer_id)
+    except StripeIntegrationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    stripe_customer_id = customer.get("id")
+    if stripe_customer_id != request.stripe_customer_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Stripe did not return the expected customer record.",
+        )
+
+    previous_customer_id = membership.stripe_customer_id
+    membership.stripe_customer_id = request.stripe_customer_id
+    membership.payment_method = membership.payment_method or "Stripe"
+    create_audit_log(
+        db,
+        action_type="Payment setup completed",
+        description=f"Existing Stripe customer linked for {agent_profile.first_name} {agent_profile.last_name}.",
+        previous_value=value_as_text(previous_customer_id),
+        new_value=value_as_text(membership.stripe_customer_id),
+        created_by=current_user.id,
+        user_id=agent_profile.user_id,
+        agent_id=agent_profile.id,
+    )
+
+    try:
+        db.commit()
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Stripe customer could not be linked because it conflicts with an existing record.",
         ) from None
 
     db.refresh(membership)
