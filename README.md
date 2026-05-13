@@ -38,6 +38,7 @@ Each completed phase will be saved as a commit. A commit is like a labelled chec
 - Phase 9: Live calls and attendance logging
 - Phase 10: Documents and agreements
 - Phase 11: Compliance centre
+- Phase 12: Certificates
 
 ## Backend
 
@@ -263,3 +264,24 @@ Compliance endpoints:
 - `POST /compliance/policies/{id}/accept`
 - `GET /agents/{id}/compliance-status`
 - `GET /admin/compliance-dashboard`
+
+## Certificates
+
+Certificates prove that an agent has completed a training module or assessment.
+
+This phase records certificate details, including the linked agent, linked training module, certificate name, certificate link, issued date, expiry date, renewal requirement, and certificate status.
+
+Agents can view their own certificates. Admins can create certificates and can expire or revoke them when needed.
+
+Certificate statuses are:
+
+- Active
+- Expired
+- Revoked
+
+Certificate endpoints:
+
+- `GET /agents/{id}/certificates`
+- `POST /agents/{id}/certificates`
+- `POST /certificates/{id}/expire`
+- `POST /certificates/{id}/revoke`

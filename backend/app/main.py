@@ -2,6 +2,7 @@ from fastapi import FastAPI
 
 from app.api.agents import router as agents_router
 from app.api.auth import router as auth_router
+from app.api.certificates import router as certificates_router
 from app.api.compliance import router as compliance_router
 from app.api.documents import router as documents_router
 from app.api.health import router as health_router
@@ -24,4 +25,5 @@ app.include_router(training_router)
 app.include_router(live_training_router)
 app.include_router(documents_router)
 app.include_router(compliance_router)
+app.include_router(certificates_router)
 app.include_router(health_router)

@@ -1,4 +1,5 @@
 from app.models.agent_profile import AgentProfile
+from app.models.certificate import Certificate
 from app.models.compliance import CompliancePolicy, PolicyAcceptance
 from app.models.document import Document
 from app.models.live_training import AttendanceLog, LiveTrainingSession
@@ -19,6 +20,7 @@ __all__ = [
     "AgentTrainingProgress",
     "AgentProfile",
     "AttendanceLog",
+    "Certificate",
     "CompliancePolicy",
     "Document",
     "LiveTrainingSession",
