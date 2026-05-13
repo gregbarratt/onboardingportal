@@ -59,7 +59,7 @@ function FurtherTrainingContent({ profile }) {
                 <div className="flex items-start justify-between gap-3">
                   <div>
                     <h2 className="text-sm font-semibold text-slate-950">{module.title}</h2>
-                    <p className="mt-1 text-xs font-medium text-slate-500">{module.category}</p>
+                    <p className="mt-1 text-xs font-medium text-slate-500">{getCategoryName(module.category)}</p>
                   </div>
                   <StatusBadge status={module.mandatory ? "Mandatory" : "Optional"} />
                 </div>
@@ -73,4 +73,10 @@ function FurtherTrainingContent({ profile }) {
       </Card>
     </div>
   );
+}
+
+function getCategoryName(category) {
+  if (!category) return "Training";
+  if (typeof category === "string") return category;
+  return category.name || "Training";
 }

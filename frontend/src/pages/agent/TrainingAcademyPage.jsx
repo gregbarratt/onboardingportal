@@ -33,6 +33,7 @@ function TrainingContent({ profile }) {
   const completedMandatory = progressRows.filter((item) => item.training_module?.mandatory && item.progress_status === "Complete").length;
   const completedAll = progressRows.filter((item) => item.progress_status === "Complete").length;
   const progressByModule = new Map(progressRows.map((item) => [item.training_module_id, item]));
+  const estimatedMinutes = moduleRows.reduce((total, item) => total + readEstimatedMinutes(item.estimated_completion_time), 0);
 
   return (
     <div className="space-y-6">
@@ -41,7 +42,7 @@ function TrainingContent({ profile }) {
       <div className="grid gap-4 md:grid-cols-3">
         <StatCard label="Mandatory modules" value={mandatoryModules.length} detail="Required before approval" icon={GraduationCap} />
         <StatCard label="Completed" value={completedAll} detail="Training records complete" icon={BookOpenCheck} />
-        <StatCard label="Estimated time" value={`${moduleRows.reduce((total, item) => total + (item.estimated_completion_time || 0), 0)} mins`} icon={Clock} />
+        <StatCard label="Estimated time" value={`${estimatedMinutes} mins`} icon={Clock} />
       </div>
 
       <Card title="Mandatory Training Progress">
@@ -59,13 +60,13 @@ function TrainingContent({ profile }) {
                   <div className="flex items-start justify-between gap-3">
                     <div>
                       <p className="text-sm font-semibold text-slate-950">{module.title}</p>
-                      <p className="mt-1 text-xs font-medium text-slate-500">{module.category || "Training"}</p>
+                      <p className="mt-1 text-xs font-medium text-slate-500">{getCategoryName(module.category)}</p>
                     </div>
                     <StatusBadge status={rowProgress?.progress_status || (module.mandatory ? "Mandatory" : "Optional")} />
                   </div>
                   <p className="mt-3 text-sm text-slate-600">{module.description || "No description added yet."}</p>
                   <div className="mt-4 flex flex-wrap gap-2 text-xs text-slate-500">
-                    <span>{module.estimated_completion_time || 0} minutes</span>
+                    <span>{module.estimated_completion_time || "Not timed"}</span>
                     <span>{module.quiz_required ? `Pass mark ${module.pass_mark || 0}%` : "No quiz"}</span>
                   </div>
                 </Link>
@@ -78,4 +79,17 @@ function TrainingContent({ profile }) {
       </Card>
     </div>
   );
+}
+
+function getCategoryName(category) {
+  if (!category) return "Training";
+  if (typeof category === "string") return category;
+  return category.name || "Training";
+}
+
+function readEstimatedMinutes(value) {
+  if (typeof value === "number") return value;
+  if (!value) return 0;
+  const match = String(value).match(/\d+/);
+  return match ? Number(match[0]) : 0;
 }

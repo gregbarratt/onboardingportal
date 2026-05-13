@@ -41,7 +41,7 @@ export default function TrainingModuleDetailPage() {
         <>
           <div className="grid gap-4 md:grid-cols-4">
             <Card title="Category">
-              <p className="text-sm font-medium text-slate-900">{data.category || "Training"}</p>
+              <p className="text-sm font-medium text-slate-900">{getCategoryName(data.category)}</p>
             </Card>
             <Card title="Level">
               <p className="text-sm font-medium text-slate-900">{data.level || "Not set"}</p>
@@ -73,6 +73,12 @@ export default function TrainingModuleDetailPage() {
       ) : null}
     </div>
   );
+}
+
+function getCategoryName(category) {
+  if (!category) return "Training";
+  if (typeof category === "string") return category;
+  return category.name || "Training";
 }
 
 function ResourceLink({ label, url }) {
