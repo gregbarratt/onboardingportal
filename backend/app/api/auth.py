@@ -1,5 +1,6 @@
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_current_active_user
@@ -7,9 +8,25 @@ from app.core.roles import DEFAULT_ROLES
 from app.db.session import get_db
 from app.models.role import Role
 from app.models.agent_profile import AgentProfile
+from app.models.membership import Membership
 from app.models.user import User
-from app.schemas.auth import LoginRequest, RegisterUserRequest, TokenResponse, UserRead
+from app.schemas.auth import (
+    AgentRegistrationRequest,
+    AgentRegistrationResponse,
+    LoginRequest,
+    RegisterUserRequest,
+    TokenResponse,
+    UserRead,
+)
+from app.services.agent_ids import generate_next_agent_id
+from app.services.audit import create_audit_log
 from app.services.passwords import hash_password, verify_password
+from app.services.stripe import (
+    StripeIntegrationError,
+    create_agent_registration_checkout_session,
+    create_stripe_customer,
+    ensure_agent_registration_checkout_ready,
+)
 from app.services.tokens import create_access_token
 
 
@@ -78,6 +95,112 @@ def register_user(
             detail="User was created but could not be loaded.",
         )
     return created_user
+
+
+@router.post("/register-agent", response_model=AgentRegistrationResponse, status_code=status.HTTP_201_CREATED)
+def register_agent_and_start_payment(
+    request: AgentRegistrationRequest,
+    db: Session = Depends(get_db),
+) -> dict:
+    try:
+        ensure_agent_registration_checkout_ready()
+    except StripeIntegrationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    if get_user_by_email(db, request.email) is not None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="A portal account already exists for this email address.",
+        )
+
+    roles = ensure_default_roles(db)
+    user = User(
+        email=request.email,
+        hashed_password=hash_password(request.password),
+        role=roles["Agent"],
+    )
+    db.add(user)
+    db.flush()
+
+    agent_profile = AgentProfile(
+        user_id=user.id,
+        agent_id=generate_next_agent_id(db),
+        first_name=request.first_name,
+        last_name=request.last_name,
+        email=request.email,
+        personal_email=request.email,
+        phone=request.phone,
+        business_name=request.business_name,
+        status="Payment Pending",
+        address=request.address,
+        postcode=request.postcode,
+        portal_access_enabled=False,
+    )
+    db.add(agent_profile)
+    db.flush()
+
+    membership = Membership(
+        agent_id=agent_profile.id,
+        membership_type="Standard",
+        membership_status="Payment Pending",
+        payment_status="Pending",
+        payment_method="Stripe",
+        failed_payment_count=0,
+    )
+    db.add(membership)
+    db.flush()
+
+    try:
+        customer = create_stripe_customer(agent_profile)
+        stripe_customer_id = customer.get("id")
+        if not stripe_customer_id:
+            raise StripeIntegrationError("Stripe did not return a customer ID.")
+
+        membership.stripe_customer_id = stripe_customer_id
+        checkout_session = create_agent_registration_checkout_session(
+            agent_profile=agent_profile,
+            membership=membership,
+        )
+        checkout_url = checkout_session.get("url")
+        checkout_session_id = checkout_session.get("id")
+        if not checkout_url or not checkout_session_id:
+            raise StripeIntegrationError("Stripe did not return a checkout link.")
+
+        create_audit_log(
+            db,
+            action_type="Account created",
+            description=f"Agent registration started for {agent_profile.first_name} {agent_profile.last_name}.",
+            created_by=None,
+            user_id=user.id,
+            agent_id=agent_profile.id,
+        )
+        create_audit_log(
+            db,
+            action_type="Payment setup completed",
+            description="Stripe checkout session created for agent registration.",
+            previous_value=None,
+            new_value=stripe_customer_id,
+            created_by=None,
+            user_id=user.id,
+            agent_id=agent_profile.id,
+        )
+        db.commit()
+    except StripeIntegrationError as exc:
+        db.rollback()
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+    except IntegrityError:
+        db.rollback()
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Registration could not be completed because it conflicts with an existing record.",
+        ) from None
+
+    return {
+        "agent_profile_id": agent_profile.id,
+        "checkout_session_id": checkout_session_id,
+        "checkout_url": checkout_url,
+        "message": "Registration created. Continue to Stripe to complete payment.",
+    }
 
 
 @router.post("/login", response_model=TokenResponse)

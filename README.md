@@ -45,7 +45,7 @@ The frontend is the visible portal in the browser. It is built with React and Ta
 - Marketing Hub is locked until the social media and advertising policy has been accepted.
 - Further Training is locked until mandatory onboarding training is complete.
 - An agent cannot be Approved to Trade until the final approval checks are complete.
-- Stripe can be connected to read customer subscriptions, invoices, and payment status. Creating live subscriptions or charges should only be enabled after Stripe prices and business approval are in place.
+- Stripe can be connected to register agents through Stripe Checkout, then read customer subscriptions, invoices, and payment status.
 
 The final approval checks include:
 
@@ -95,9 +95,13 @@ FRONTEND_URL="http://127.0.0.1:5173"
 JWT_SECRET_KEY="change-this-before-real-use"
 STRIPE_SECRET_KEY=""
 STRIPE_WEBHOOK_SECRET=""
+STRIPE_AGENT_SETUP_PRICE_ID=""
+STRIPE_AGENT_MONTHLY_PRICE_ID=""
 ```
 
 Use a Stripe test key first, starting with `sk_test_`. Only use a live key, starting with `sk_live_`, when the business is ready to connect live billing data.
+
+For public agent registration with payment, add a Stripe monthly membership Price ID. Add a setup fee Price ID too if One Travel Club charges a joining fee.
 
 For PostgreSQL, the database setting will look more like this:
 

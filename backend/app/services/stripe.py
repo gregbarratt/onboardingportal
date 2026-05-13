@@ -60,6 +60,14 @@ def ensure_stripe_ready() -> None:
     stripe_sdk.api_key = settings.stripe_secret_key.strip()
 
 
+def ensure_agent_registration_checkout_ready() -> None:
+    ensure_stripe_ready()
+    if not settings.stripe_agent_monthly_price_id.strip():
+        raise StripeIntegrationError(
+            "Stripe monthly membership price is not configured. Add STRIPE_AGENT_MONTHLY_PRICE_ID in Render."
+        )
+
+
 def create_stripe_customer(agent_profile: AgentProfile) -> dict[str, Any]:
     ensure_stripe_ready()
 
@@ -80,6 +88,62 @@ def create_stripe_customer(agent_profile: AgentProfile) -> dict[str, Any]:
         raise StripeIntegrationError(f"Stripe customer could not be created: {exc}") from exc
 
     return stripe_object_to_dict(customer)
+
+
+def create_agent_registration_checkout_session(
+    *,
+    agent_profile: AgentProfile,
+    membership: Membership,
+) -> dict[str, Any]:
+    ensure_agent_registration_checkout_ready()
+    if not membership.stripe_customer_id:
+        raise StripeIntegrationError("This registration does not have a Stripe customer yet.")
+
+    line_items = [
+        {
+            "price": settings.stripe_agent_monthly_price_id.strip(),
+            "quantity": 1,
+        }
+    ]
+    setup_price_id = settings.stripe_agent_setup_price_id.strip()
+    if setup_price_id:
+        line_items.insert(
+            0,
+            {
+                "price": setup_price_id,
+                "quantity": 1,
+            },
+        )
+
+    metadata = {
+        "agent_profile_id": str(agent_profile.id),
+        "membership_id": str(membership.id),
+        "agent_id": agent_profile.agent_id,
+        "user_id": str(agent_profile.user_id),
+        "portal_email": agent_profile.email,
+    }
+
+    try:
+        session = stripe_sdk.checkout.Session.create(
+            mode="subscription",
+            customer=membership.stripe_customer_id,
+            client_reference_id=f"agent_profile:{agent_profile.id}",
+            line_items=line_items,
+            success_url=f"{settings.frontend_url.rstrip('/')}/register/success?session_id={{CHECKOUT_SESSION_ID}}",
+            cancel_url=f"{settings.frontend_url.rstrip('/')}/register/cancel",
+            billing_address_collection="required",
+            phone_number_collection={"enabled": True},
+            customer_update={
+                "address": "auto",
+                "name": "auto",
+            },
+            subscription_data={"metadata": metadata},
+            metadata=metadata,
+        )
+    except Exception as exc:  # pragma: no cover - depends on Stripe API/network
+        raise StripeIntegrationError(f"Stripe checkout could not be created: {exc}") from exc
+
+    return stripe_object_to_dict(session)
 
 
 def retrieve_stripe_customer(customer_id: str) -> dict[str, Any]:
@@ -327,7 +391,10 @@ def process_stripe_webhook_event(
     stripe_object = event_data.get("object") if isinstance(event_data.get("object"), dict) else {}
 
     handled = False
-    if event_type in {"invoice.paid", "invoice.payment_succeeded", "invoice.payment_failed"}:
+    if event_type == "checkout.session.completed":
+        handle_checkout_session_completed(db, session=stripe_object)
+        handled = True
+    elif event_type in {"invoice.paid", "invoice.payment_succeeded", "invoice.payment_failed"}:
         handle_stripe_invoice_event(db, event_type=event_type, invoice=stripe_object)
         handled = True
     elif event_type in {"customer.subscription.created", "customer.subscription.updated"}:
@@ -368,6 +435,58 @@ def parse_stripe_event(payload: bytes, stripe_signature: str | None) -> dict[str
         raise StripeIntegrationError(f"Stripe webhook payload could not be read: {exc}") from exc
 
     return event if isinstance(event, dict) else {"type": "unknown"}
+
+
+def handle_checkout_session_completed(db: Session, *, session: dict[str, Any]) -> None:
+    customer_id = text_or_none(session.get("customer"))
+    subscription_id = text_or_none(session.get("subscription"))
+    metadata = session.get("metadata") if isinstance(session.get("metadata"), dict) else {}
+    membership_id = text_or_none(metadata.get("membership_id"))
+
+    membership = None
+    if membership_id:
+        try:
+            membership = db.get(Membership, int(membership_id))
+        except ValueError:
+            membership = None
+    if membership is None and customer_id:
+        membership = db.scalar(select(Membership).where(Membership.stripe_customer_id == customer_id))
+    if membership is None:
+        return
+
+    agent_profile = db.get(AgentProfile, membership.agent_id)
+    if agent_profile is None:
+        return
+
+    previous_membership_status = membership.membership_status
+    previous_payment_status = membership.payment_status
+
+    if customer_id:
+        membership.stripe_customer_id = customer_id
+    if subscription_id:
+        membership.stripe_subscription_id = subscription_id
+    membership.payment_method = membership.payment_method or "Stripe"
+
+    if session.get("payment_status") == "paid":
+        membership.membership_status = "Active"
+        membership.payment_status = "Paid"
+        membership.last_payment_date = date.today()
+        membership.failed_payment_count = 0
+        agent_profile.status = "Payment Active"
+        agent_profile.portal_access_enabled = True
+    else:
+        membership.membership_status = "Payment Pending"
+        membership.payment_status = "Pending"
+
+    add_membership_audit_log(
+        db,
+        agent_profile=agent_profile,
+        membership=membership,
+        current_user=None,
+        previous_membership_status=previous_membership_status,
+        previous_payment_status=previous_payment_status,
+        source="Stripe checkout completed",
+    )
 
 
 def handle_stripe_invoice_event(db: Session, *, event_type: str, invoice: dict[str, Any]) -> None:
@@ -514,6 +633,8 @@ def update_membership_from_invoice(
         membership.membership_status = "Active"
         membership.last_payment_date = paid_date_from_invoice(invoice) or date.today()
         membership.failed_payment_count = 0
+        agent_profile.status = "Payment Active"
+        agent_profile.portal_access_enabled = True
     elif payment_status == "Failed":
         membership.membership_status = "Failed Payment"
         attempt_count = int(invoice.get("attempt_count") or 0)
@@ -562,6 +683,11 @@ def update_membership_from_subscription(
     membership.next_payment_date = subscription.get("current_period_end") or membership.next_payment_date
     if subscription.get("canceled_at"):
         membership.cancellation_date = subscription.get("canceled_at")
+    if membership_status == "Active":
+        agent_profile.status = "Payment Active"
+        agent_profile.portal_access_enabled = True
+    elif membership_status in {"Overdue", "Suspended"}:
+        agent_profile.status = "Payment Overdue" if membership_status == "Overdue" else "Suspended"
 
     add_membership_audit_log(
         db,

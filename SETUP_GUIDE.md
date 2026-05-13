@@ -69,9 +69,13 @@ FRONTEND_URL="http://127.0.0.1:5173"
 JWT_SECRET_KEY="change-this-before-real-use"
 STRIPE_SECRET_KEY=""
 STRIPE_WEBHOOK_SECRET=""
+STRIPE_AGENT_SETUP_PRICE_ID=""
+STRIPE_AGENT_MONTHLY_PRICE_ID=""
 ```
 
 For Stripe testing, use a test secret key that starts with `sk_test_`. Only use a live key that starts with `sk_live_` when the business is ready to connect live billing data.
+
+The registration payment page also needs Stripe Price IDs. The monthly membership price is required. The setup fee price is optional.
 
 Do not put real passwords or secret keys into GitHub.
 

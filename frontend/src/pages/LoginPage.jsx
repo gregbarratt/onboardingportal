@@ -1,6 +1,6 @@
 import { ArrowRight, Loader2, LockKeyhole } from "lucide-react";
 import { useState } from "react";
-import { Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
 
 import { useAuth } from "../context/AuthContext.jsx";
 
@@ -87,6 +87,12 @@ export default function LoginPage() {
             Sign in
           </button>
         </form>
+        <p className="mt-5 text-center text-sm text-slate-600">
+          New agent?{" "}
+          <Link className="font-semibold text-sky-700 hover:text-sky-900" to="/register">
+            Register and set up payment
+          </Link>
+        </p>
       </section>
     </main>
   );

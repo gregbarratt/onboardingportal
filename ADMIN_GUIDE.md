@@ -97,7 +97,7 @@ This includes:
 
 Agents can view their own membership records, but payment status updates are admin-controlled.
 
-Stripe can be connected so admins can create a Stripe customer record, sync live subscription status, and sync invoice status into the portal. The current portal reads subscription and invoice data; it does not create live subscriptions or charges without a future approved Stripe price setup.
+Stripe can be connected so admins can create or link a Stripe customer record, sync live subscription status, and sync invoice status into the portal. The public registration page can also send new agents to Stripe Checkout when the Stripe price settings have been added.
 
 Membership status, payment status, access level changes, and new payment records are written to the audit log.
 
@@ -355,11 +355,12 @@ The system then:
 
 ## Stripe Notes
 
-Stripe can now be connected for customer and invoice visibility.
+Stripe can now be connected for customer, subscription, invoice, and registration payment visibility.
 
 This version includes:
 
 - Creating a Stripe customer from an agent profile
+- Public agent registration with a Stripe Checkout payment step
 - Searching Stripe for an existing customer by agent name and email
 - Linking the correct Stripe customer to the agent
 - Saving Stripe customer and subscription IDs
@@ -368,7 +369,7 @@ This version includes:
 - Showing invoice links and PDF links to agents
 - Webhook handling for paid invoices, failed invoices, and cancelled subscriptions
 
-Start with Stripe test keys. Do not use live keys until the business is ready to connect live billing data.
+Start with Stripe test keys. Do not use live keys until the business is ready to connect live billing data. The public registration payment flow needs `STRIPE_AGENT_MONTHLY_PRICE_ID`; `STRIPE_AGENT_SETUP_PRICE_ID` is optional if a setup fee is charged.
 
 ## Routine Admin Checks
 
