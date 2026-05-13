@@ -309,6 +309,18 @@ function MembershipDetail({ agentId }) {
               { key: "payment_status", label: "Status", render: (row) => <StatusBadge status={row.payment_status} /> },
               { key: "payment_date", label: "Paid", render: (row) => formatDate(row.payment_date) },
               { key: "due_date", label: "Due", render: (row) => formatDate(row.due_date) },
+              {
+                key: "invoice_url",
+                label: "Invoice",
+                render: (row) =>
+                  row.invoice_url ? (
+                    <a className="font-semibold text-sky-700 hover:text-sky-900" href={row.invoice_url} target="_blank" rel="noreferrer">
+                      Open invoice
+                    </a>
+                  ) : (
+                    "Not set"
+                  ),
+              },
             ]}
           />
         </Card>

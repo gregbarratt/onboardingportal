@@ -91,6 +91,8 @@ Agents can view their own membership records, but payment status updates are adm
 
 Stripe is prepared for later but does not charge real money in this version.
 
+Membership status, payment status, access level changes, and new payment records are written to the audit log.
+
 ## Onboarding Management
 
 Admins can manage onboarding checklist steps and agent progress.

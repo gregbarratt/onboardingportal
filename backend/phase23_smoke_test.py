@@ -66,7 +66,7 @@ def run_smoke_tests() -> None:
     david = find_agent(agents, "david.smith@example.com")
 
     test_agent_profile(admin_headers, david)
-    test_membership_and_payment(admin_headers, mark)
+    test_membership_and_payment(admin_headers, mark, mark_headers)
     test_onboarding(admin_headers, emma, mark, emma_headers)
     test_training(admin_headers, sarah, david, sarah_headers, agent_headers)
     test_attendance(admin_headers, david)
@@ -100,26 +100,41 @@ def test_agent_profile(headers: dict[str, str], agent: dict[str, Any]) -> None:
     assert profile["email"] == agent["email"], "Agent profile email did not match."
 
 
-def test_membership_and_payment(headers: dict[str, str], agent: dict[str, Any]) -> None:
-    membership = assert_json("membership", client.get(f"/agents/{agent['id']}/membership", headers=headers), 200)
+def test_membership_and_payment(admin_headers: dict[str, str], agent: dict[str, Any], agent_headers: dict[str, str]) -> None:
+    membership = assert_json("membership", client.get(f"/agents/{agent['id']}/membership", headers=admin_headers), 200)
     assert membership["payment_status"], "Membership payment status was missing."
 
     updated = assert_json(
         "payment update",
         client.put(
             f"/agents/{agent['id']}/membership",
-            headers=headers,
-            json={"payment_status": membership["payment_status"]},
+            headers=admin_headers,
+            json={"membership_status": "Active", "payment_status": "Paid", "access_level": "Smoke test access"},
         ),
         200,
     )
-    assert updated["payment_status"] == membership["payment_status"], "Membership payment update failed."
+    assert updated["membership_status"] == "Active", "Membership status update failed."
+    assert updated["payment_status"] == "Paid", "Membership payment update failed."
+
+    assert_status(
+        "agent blocked from creating payment",
+        client.post(
+            f"/agents/{agent['id']}/payments",
+            headers=agent_headers,
+            json={
+                "amount": "1.00",
+                "currency": "GBP",
+                "payment_type": "Agent Attempt",
+            },
+        ),
+        403,
+    )
 
     payment = assert_json(
         "create test payment",
         client.post(
             f"/agents/{agent['id']}/payments",
-            headers=headers,
+            headers=admin_headers,
             json={
                 "amount": "12.50",
                 "currency": "GBP",
@@ -131,6 +146,11 @@ def test_membership_and_payment(headers: dict[str, str], agent: dict[str, Any]) 
         201,
     )
     assert payment["payment_status"] == "Pending", "Payment creation failed."
+
+    logs = assert_json("membership audit logs", client.get(f"/agents/{agent['id']}/audit-logs", headers=admin_headers), 200)
+    assert any(log["action_type"] == "Membership status changed" for log in logs), "Membership status audit log was missing."
+    assert any(log["action_type"] == "Payment status changed" for log in logs), "Payment status audit log was missing."
+    assert any(log["action_type"] == "Access level changed" for log in logs), "Access level audit log was missing."
 
 
 def test_onboarding(

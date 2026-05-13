@@ -62,6 +62,8 @@ This page shows:
 
 This version tracks payments but does not charge real money. Stripe is prepared for later.
 
+Agents can view membership and payment records, but they cannot create or edit payment records. Payment records are controlled by admin now and can be connected to Stripe later.
+
 ## Onboarding Checklist
 
 The onboarding checklist shows everything an agent must complete before trading.

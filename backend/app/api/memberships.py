@@ -23,6 +23,7 @@ from app.schemas.membership import (
     PaymentCreate,
     PaymentRead,
 )
+from app.services.audit import create_audit_log
 
 
 router = APIRouter(prefix="/agents", tags=["Memberships and Payments"])
@@ -40,6 +41,59 @@ def get_membership_or_404(db: Session, agent_profile_id: int) -> Membership:
             detail="Membership record not found for this agent.",
         )
     return membership
+
+
+def value_as_text(value: object) -> str | None:
+    if value is None:
+        return None
+    return str(value)
+
+
+def add_membership_change_audit_logs(
+    db: Session,
+    *,
+    agent_profile: AgentProfile,
+    current_user: User,
+    previous_membership_status: str | None,
+    previous_payment_status: str | None,
+    previous_access_level: str | None,
+    membership: Membership,
+) -> None:
+    if previous_membership_status != membership.membership_status:
+        create_audit_log(
+            db,
+            action_type="Membership status changed",
+            description=f"Membership status changed for {agent_profile.first_name} {agent_profile.last_name}.",
+            previous_value=value_as_text(previous_membership_status),
+            new_value=value_as_text(membership.membership_status),
+            created_by=current_user.id,
+            user_id=agent_profile.user_id,
+            agent_id=agent_profile.id,
+        )
+
+    if previous_payment_status != membership.payment_status:
+        create_audit_log(
+            db,
+            action_type="Payment status changed",
+            description=f"Membership payment status changed for {agent_profile.first_name} {agent_profile.last_name}.",
+            previous_value=value_as_text(previous_payment_status),
+            new_value=value_as_text(membership.payment_status),
+            created_by=current_user.id,
+            user_id=agent_profile.user_id,
+            agent_id=agent_profile.id,
+        )
+
+    if previous_access_level != membership.access_level:
+        create_audit_log(
+            db,
+            action_type="Access level changed",
+            description=f"Membership access level changed for {agent_profile.first_name} {agent_profile.last_name}.",
+            previous_value=value_as_text(previous_access_level),
+            new_value=value_as_text(membership.access_level),
+            created_by=current_user.id,
+            user_id=agent_profile.user_id,
+            agent_id=agent_profile.id,
+        )
 
 
 @router.get("/{agent_profile_id}/membership", response_model=MembershipRead)
@@ -80,9 +134,23 @@ def update_agent_membership(
         )
         db.add(membership)
 
+    previous_membership_status = membership.membership_status
+    previous_payment_status = membership.payment_status
+    previous_access_level = membership.access_level
+
     update_data = request.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(membership, field, value)
+
+    add_membership_change_audit_logs(
+        db,
+        agent_profile=agent_profile,
+        current_user=current_user,
+        previous_membership_status=previous_membership_status,
+        previous_payment_status=previous_payment_status,
+        previous_access_level=previous_access_level,
+        membership=membership,
+    )
 
     try:
         db.commit()
@@ -105,13 +173,11 @@ def create_agent_payment(
     current_user: User = Depends(get_current_active_user),
 ) -> Payment:
     agent_profile: AgentProfile = get_agent_or_404(db, agent_profile_id)
-    check_agent_access(agent_profile, current_user)
 
-    admin_user = is_admin_user(current_user)
-    if not admin_user and request.payment_status is not None:
+    if not is_admin_user(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
-            detail="Only admins can set payment status.",
+            detail="Only admins can create payment records.",
         )
 
     payment = Payment(
@@ -127,6 +193,16 @@ def create_agent_payment(
         notes=request.notes,
     )
     db.add(payment)
+    create_audit_log(
+        db,
+        action_type="Payment status changed",
+        description=f"Payment record created for {agent_profile.first_name} {agent_profile.last_name}.",
+        previous_value=None,
+        new_value=value_as_text(payment.payment_status),
+        created_by=current_user.id,
+        user_id=agent_profile.user_id,
+        agent_id=agent_profile.id,
+    )
 
     try:
         db.commit()
@@ -156,4 +232,3 @@ def list_agent_payments(
             .order_by(Payment.id)
         )
     )
-
