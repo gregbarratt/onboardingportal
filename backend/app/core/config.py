@@ -23,6 +23,8 @@ class Settings(BaseSettings):
     max_upload_size_mb: int = 10
     stripe_secret_key: str = ""
     stripe_webhook_secret: str = ""
+    initial_admin_email: str = ""
+    initial_admin_password: str = ""
 
     model_config = SettingsConfigDict(
         env_file=(PROJECT_ROOT / ".env", BACKEND_DIR / ".env"),

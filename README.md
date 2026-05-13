@@ -301,3 +301,4 @@ More plain-English guides are included:
 - `SETUP_GUIDE.md` explains how to install and run the project.
 - `USER_GUIDE.md` explains how an agent uses the portal.
 - `ADMIN_GUIDE.md` explains how staff manage the portal.
+- `DEPLOYMENT_GUIDE.md` explains how to put the portal online.
