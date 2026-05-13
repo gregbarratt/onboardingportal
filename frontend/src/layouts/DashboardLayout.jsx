@@ -38,6 +38,21 @@ const navItems = [
 
 const adminRoles = ["Super Admin", "Admin", "Training Manager", "Compliance Manager"];
 
+const adminNavItems = [
+  { label: "Admin Dashboard", to: "/admin", icon: UsersRound, end: true },
+  { label: "Agent List", to: "/admin/agents", icon: UsersRound },
+  { label: "Payments Admin", to: "/admin/membership", icon: BriefcaseBusiness },
+  { label: "Onboarding Admin", to: "/admin/onboarding", icon: CheckSquare },
+  { label: "Training Admin", to: "/admin/training", icon: GraduationCap },
+  { label: "Live Sessions", to: "/admin/live-sessions", icon: CalendarCheck },
+  { label: "Attendance Logs", to: "/admin/attendance", icon: ClipboardList },
+  { label: "Document Review", to: "/admin/documents", icon: FileCheck2 },
+  { label: "Compliance Admin", to: "/admin/compliance", icon: ShieldCheck },
+  { label: "Certificates Admin", to: "/admin/certificates", icon: Award },
+  { label: "Audit Logs", to: "/admin/audit-logs", icon: ClipboardList },
+  { label: "Settings", to: "/admin/settings", icon: ClipboardList },
+];
+
 export default function DashboardLayout() {
   const { logout, user } = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
@@ -133,7 +148,16 @@ function NavigationLinks({ showAdmin, onNavigate }) {
       {navItems.map((item) => (
         <SidebarLink key={item.to} item={item} onNavigate={onNavigate} />
       ))}
-      {showAdmin && <SidebarLink item={{ label: "Admin", to: "/admin", icon: UsersRound }} onNavigate={onNavigate} />}
+      {showAdmin ? (
+        <>
+          <div className="mt-4 border-t border-slate-200 pt-4">
+            <p className="px-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Admin</p>
+          </div>
+          {adminNavItems.map((item) => (
+            <SidebarLink key={item.to} item={item} onNavigate={onNavigate} />
+          ))}
+        </>
+      ) : null}
     </>
   );
 }
@@ -144,6 +168,7 @@ function SidebarLink({ item, onNavigate }) {
   return (
     <NavLink
       to={item.to}
+      end={item.end}
       onClick={onNavigate}
       className={({ isActive }) =>
         [

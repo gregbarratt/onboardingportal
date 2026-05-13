@@ -44,6 +44,7 @@ Each completed phase will be saved as a commit. A commit is like a labelled chec
 - Phase 15: Notifications
 - Phase 16: Frontend setup
 - Phase 17: Agent frontend pages
+- Phase 18: Admin frontend pages
 
 ## Backend
 
@@ -406,3 +407,11 @@ The agent side of the portal now has real pages instead of placeholders.
 Agents can use the frontend to view their dashboard, profile, membership and payments, onboarding checklist, training academy, further training, live calls, documents, certificates, supplier access, marketing hub, and compliance centre.
 
 Some sections are deliberately locked by backend rules. For example, supplier access only opens after final approval, and marketing resources only open after the social media and advertising policy has been accepted.
+
+## Admin Frontend Pages
+
+The admin side of the portal now has its own menu and management pages.
+
+Admins can review the dashboard, agent list, agent detail records, memberships and payments, onboarding progress, training modules, live sessions, attendance logs, document review, compliance dashboard, certificates, audit logs, and settings.
+
+These pages use the backend security rules already built in earlier phases. Admin users can manage records, while agents remain limited to their own portal pages.

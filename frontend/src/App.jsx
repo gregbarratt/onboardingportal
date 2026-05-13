@@ -16,13 +16,29 @@ import ProfilePage from "./pages/agent/ProfilePage.jsx";
 import SupplierAccessPage from "./pages/agent/SupplierAccessPage.jsx";
 import TrainingAcademyPage from "./pages/agent/TrainingAcademyPage.jsx";
 import TrainingModuleDetailPage from "./pages/agent/TrainingModuleDetailPage.jsx";
+import AdminAgentDetailPage from "./pages/admin/AdminAgentDetailPage.jsx";
+import AdminAgentListPage from "./pages/admin/AdminAgentListPage.jsx";
+import AdminAttendanceLogsPage from "./pages/admin/AdminAttendanceLogsPage.jsx";
+import AdminAuditLogsPage from "./pages/admin/AdminAuditLogsPage.jsx";
+import AdminCertificatesPage from "./pages/admin/AdminCertificatesPage.jsx";
+import AdminComplianceDashboardPage from "./pages/admin/AdminComplianceDashboardPage.jsx";
+import AdminDashboardPage from "./pages/admin/AdminDashboardPage.jsx";
+import AdminDocumentReviewPage from "./pages/admin/AdminDocumentReviewPage.jsx";
+import AdminLiveSessionDetailPage from "./pages/admin/AdminLiveSessionDetailPage.jsx";
+import AdminLiveSessionsPage from "./pages/admin/AdminLiveSessionsPage.jsx";
+import AdminMembershipPaymentsPage from "./pages/admin/AdminMembershipPaymentsPage.jsx";
+import AdminOnboardingManagementPage from "./pages/admin/AdminOnboardingManagementPage.jsx";
+import AdminSettingsPage from "./pages/admin/AdminSettingsPage.jsx";
+import AdminTrainingModuleBuilderPage from "./pages/admin/AdminTrainingModuleBuilderPage.jsx";
+import AdminTrainingModulesPage from "./pages/admin/AdminTrainingModulesPage.jsx";
 import LoginPage from "./pages/LoginPage.jsx";
 import NotFoundPage from "./pages/NotFoundPage.jsx";
-import PlaceholderPage from "./pages/PlaceholderPage.jsx";
 
 const adminRoles = ["Super Admin", "Admin", "Training Manager", "Compliance Manager"];
 
 export default function App() {
+  const adminPage = (element) => <RoleGuard allowedRoles={adminRoles}>{element}</RoleGuard>;
+
   return (
     <Routes>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
@@ -43,14 +59,24 @@ export default function App() {
           <Route path="/supplier-access" element={<SupplierAccessPage />} />
           <Route path="/marketing" element={<MarketingHubPage />} />
           <Route path="/compliance" element={<ComplianceCentrePage />} />
-          <Route
-            path="/admin"
-            element={
-              <RoleGuard allowedRoles={adminRoles}>
-                <PlaceholderPage title="Admin Dashboard" eyebrow="Admin" />
-              </RoleGuard>
-            }
-          />
+          <Route path="/admin" element={adminPage(<AdminDashboardPage />)} />
+          <Route path="/admin/agents" element={adminPage(<AdminAgentListPage />)} />
+          <Route path="/admin/agents/:agentId" element={adminPage(<AdminAgentDetailPage />)} />
+          <Route path="/admin/membership" element={adminPage(<AdminMembershipPaymentsPage />)} />
+          <Route path="/admin/agents/:agentId/membership" element={adminPage(<AdminMembershipPaymentsPage />)} />
+          <Route path="/admin/onboarding" element={adminPage(<AdminOnboardingManagementPage />)} />
+          <Route path="/admin/agents/:agentId/onboarding" element={adminPage(<AdminOnboardingManagementPage />)} />
+          <Route path="/admin/training" element={adminPage(<AdminTrainingModulesPage />)} />
+          <Route path="/admin/training/new" element={adminPage(<AdminTrainingModuleBuilderPage />)} />
+          <Route path="/admin/training/:moduleId/edit" element={adminPage(<AdminTrainingModuleBuilderPage />)} />
+          <Route path="/admin/live-sessions" element={adminPage(<AdminLiveSessionsPage />)} />
+          <Route path="/admin/live-sessions/:sessionId" element={adminPage(<AdminLiveSessionDetailPage />)} />
+          <Route path="/admin/attendance" element={adminPage(<AdminAttendanceLogsPage />)} />
+          <Route path="/admin/documents" element={adminPage(<AdminDocumentReviewPage />)} />
+          <Route path="/admin/compliance" element={adminPage(<AdminComplianceDashboardPage />)} />
+          <Route path="/admin/certificates" element={adminPage(<AdminCertificatesPage />)} />
+          <Route path="/admin/audit-logs" element={adminPage(<AdminAuditLogsPage />)} />
+          <Route path="/admin/settings" element={adminPage(<AdminSettingsPage />)} />
         </Route>
       </Route>
 
