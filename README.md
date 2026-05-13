@@ -46,6 +46,7 @@ Each completed phase will be saved as a commit. A commit is like a labelled chec
 - Phase 17: Agent frontend pages
 - Phase 18: Admin frontend pages
 - Phase 19: Final approval workflow
+- Phase 20: Seed data and demo logins
 
 ## Backend
 
@@ -431,3 +432,36 @@ Final approval endpoints:
 
 - `GET /agents/{id}/final-approval`
 - `POST /agents/{id}/approve-to-trade`
+
+## Seed Data and Demo Logins
+
+Seed data means sample records that make the portal easier to test.
+
+The Phase 20 seed script creates demo staff users, five demo agents, onboarding progress, training progress, live calls, attendance logs, membership records, payments, documents, certificates, and audit logs.
+
+To load or refresh the demo data, run this from the `backend` folder:
+
+```bash
+python seed_demo_data.py
+```
+
+All demo accounts use this password:
+
+```text
+Password123!
+```
+
+Staff demo logins:
+
+- `superadmin@example.com`
+- `admin@example.com`
+- `training@example.com`
+- `compliance@example.com`
+
+Agent demo logins:
+
+- `sarah.jones@example.com` - Onboarding In Progress, payment active
+- `mark.evans@example.com` - Payment Pending
+- `emma.clarke@example.com` - Awaiting Final Approval
+- `david.smith@example.com` - Approved to Trade
+- `rachel.brown@example.com` - Suspended for failed payment
