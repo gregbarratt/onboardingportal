@@ -67,7 +67,7 @@ def run_smoke_tests() -> None:
 
     test_agent_profile(admin_headers, david)
     test_membership_and_payment(admin_headers, mark)
-    test_onboarding(admin_headers, emma)
+    test_onboarding(admin_headers, emma, mark, emma_headers)
     test_training(admin_headers, sarah, david, sarah_headers, agent_headers)
     test_attendance(admin_headers, david)
     test_documents(admin_headers, mark, mark_headers)
@@ -133,9 +133,39 @@ def test_membership_and_payment(headers: dict[str, str], agent: dict[str, Any]) 
     assert payment["payment_status"] == "Pending", "Payment creation failed."
 
 
-def test_onboarding(headers: dict[str, str], agent: dict[str, Any]) -> None:
-    steps = assert_json("onboarding checklist", client.get(f"/agents/{agent['id']}/onboarding", headers=headers), 200)
+def test_onboarding(
+    admin_headers: dict[str, str],
+    ready_agent: dict[str, Any],
+    in_progress_agent: dict[str, Any],
+    ready_agent_headers: dict[str, str],
+) -> None:
+    steps = assert_json("onboarding checklist", client.get(f"/agents/{ready_agent['id']}/onboarding", headers=admin_headers), 200)
     assert any(step["step"]["title"] == "Admin final approval" for step in steps), "Onboarding final approval step missing."
+
+    final_approval_step = next(step for step in steps if step["step"]["title"] == "Admin final approval")
+    assert_status(
+        "agent blocked from completing approval step",
+        client.put(
+            f"/agents/{ready_agent['id']}/onboarding/{final_approval_step['id']}",
+            headers=ready_agent_headers,
+            json={"completion_status": "Complete"},
+        ),
+        403,
+    )
+
+    mark_steps = assert_json("in-progress onboarding checklist", client.get(f"/agents/{in_progress_agent['id']}/onboarding", headers=admin_headers), 200)
+    id_document_step = next(step for step in mark_steps if step["step"]["title"] == "Upload ID document")
+    approved_step = assert_json(
+        "onboarding approval notes",
+        client.post(
+            f"/agents/{in_progress_agent['id']}/onboarding/{id_document_step['id']}/approve",
+            headers=admin_headers,
+            json={"admin_notes": "Approved during smoke test."},
+        ),
+        200,
+    )
+    assert approved_step["completion_status"] == "Complete", "Onboarding approval did not complete the step."
+    assert approved_step["admin_notes"] == "Approved during smoke test.", "Onboarding approval notes were not saved."
 
 
 def test_training(

@@ -113,6 +113,8 @@ Default onboarding steps include:
 
 Some steps require approval. Admins can approve or reject these items.
 
+Evidence links on onboarding steps can be opened from the checklist table. Admin approval notes are stored on the checklist item.
+
 ## Training Module List
 
 Admins can view training modules.

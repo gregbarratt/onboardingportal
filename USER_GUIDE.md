@@ -95,6 +95,8 @@ Each step has a status, such as:
 
 Some steps need admin approval before they count as complete.
 
+For steps that need evidence, upload the contract or document in Documents & Agreements first. Then use the document link as the evidence link on the checklist step.
+
 ## Training Academy
 
 The Training Academy contains required onboarding lessons.

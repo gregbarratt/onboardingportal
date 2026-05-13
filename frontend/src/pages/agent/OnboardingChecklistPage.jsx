@@ -21,6 +21,17 @@ import { formatDate, percentage } from "../../utils/formatters.js";
 import AgentPageShell from "./AgentPageShell.jsx";
 
 const statusOptions = ["Not Started", "In Progress", "Awaiting Review", "Complete"];
+const approvalRequiredStatusOptions = ["Not Started", "In Progress", "Awaiting Review"];
+
+function EvidenceLink({ value }) {
+  if (!value) return "Not set";
+
+  return (
+    <a className="font-semibold text-sky-700 hover:text-sky-900" href={value} target="_blank" rel="noreferrer">
+      Open evidence
+    </a>
+  );
+}
 
 export default function OnboardingChecklistPage() {
   return (
@@ -51,6 +62,7 @@ function OnboardingContent({ profile }) {
   const rows = progress.data || [];
   const selectedProgress = rows.find((item) => item.id === Number(selectedId)) || rows.find((item) => item.completion_status !== "Complete") || rows[0];
   const completedCount = rows.filter((item) => item.completion_status === "Complete").length;
+  const availableStatusOptions = selectedProgress?.step?.approval_required ? approvalRequiredStatusOptions : statusOptions;
 
   useEffect(() => {
     if (!selectedId && selectedProgress?.id) {
@@ -101,7 +113,7 @@ function OnboardingContent({ profile }) {
         </div>
       ) : null}
 
-      <Card title="Checklist Progress" description="Admin can approve steps that require review. Agents can add notes and evidence links.">
+      <Card title="Checklist Progress" description="Submit steps that need approval for review. Admin will mark those steps complete after checking them.">
         <ProgressBar value={percentage(completedCount, rows.length)} label={`${completedCount} of ${rows.length} steps complete`} />
       </Card>
 
@@ -114,6 +126,7 @@ function OnboardingContent({ profile }) {
             { key: "required", label: "Required", render: (row) => (row.step?.required ? "Yes" : "No") },
             { key: "completion_status", label: "Status", render: (row) => <StatusBadge status={row.completion_status} /> },
             { key: "due_date", label: "Due", render: (row) => formatDate(row.due_date) },
+            { key: "evidence_file_or_link", label: "Evidence", render: (row) => <EvidenceLink value={row.evidence_file_or_link} /> },
             { key: "approved_date", label: "Approved", render: (row) => formatDate(row.approved_date) },
             {
               key: "action",
@@ -133,14 +146,14 @@ function OnboardingContent({ profile }) {
           <form onSubmit={handleSubmit} className="grid gap-4 md:grid-cols-2">
             <FormField label="Status">
               <SelectInput value={form.completion_status} onChange={(event) => setForm((current) => ({ ...current, completion_status: event.target.value }))}>
-                {statusOptions.map((status) => (
+                {availableStatusOptions.map((status) => (
                   <option key={status} value={status}>
                     {status}
                   </option>
                 ))}
               </SelectInput>
             </FormField>
-            <FormField label="Evidence file or link" help="For now, paste a link to the document or evidence. Real uploads are added later.">
+            <FormField label="Evidence file or link" help="Upload contracts and documents in Documents & Agreements, then paste the file link here if this step needs evidence.">
               <TextInput
                 value={form.evidence_file_or_link}
                 onChange={(event) => setForm((current) => ({ ...current, evidence_file_or_link: event.target.value }))}

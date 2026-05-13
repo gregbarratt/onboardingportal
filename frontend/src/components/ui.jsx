@@ -144,7 +144,7 @@ export function DataTable({ columns, rows, emptyMessage = "There is nothing to s
               <tr key={row.id || JSON.stringify(row)} className="align-top">
                 {columns.map((column) => (
                   <td key={column.key} className="px-4 py-3 text-slate-700">
-                    {column.render ? column.render(row) : row[column.key] || "Not set"}
+                    {column.render ? column.render(row) : row[column.key] === null || row[column.key] === undefined || row[column.key] === "" ? "Not set" : row[column.key]}
                   </td>
                 ))}
               </tr>

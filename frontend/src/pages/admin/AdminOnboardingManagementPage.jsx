@@ -23,6 +23,16 @@ import { formatDate, percentage } from "../../utils/formatters.js";
 import { onboardingStatuses } from "./adminConstants.js";
 import AdminPageShell, { AdminLinkButton } from "./AdminPageShell.jsx";
 
+function EvidenceLink({ value }) {
+  if (!value) return "Not set";
+
+  return (
+    <a className="font-semibold text-sky-700 hover:text-sky-900" href={value} target="_blank" rel="noreferrer">
+      Open evidence
+    </a>
+  );
+}
+
 export default function AdminOnboardingManagementPage() {
   const { agentId } = useParams();
 
@@ -192,6 +202,7 @@ function OnboardingDetail({ agentId }) {
               { key: "completion_status", label: "Status", render: (row) => <StatusBadge status={row.completion_status} /> },
               { key: "approval", label: "Approval", render: (row) => (row.step?.approval_required ? "Required" : "Not required") },
               { key: "due_date", label: "Due", render: (row) => formatDate(row.due_date) },
+              { key: "evidence_file_or_link", label: "Evidence", render: (row) => <EvidenceLink value={row.evidence_file_or_link} /> },
               { key: "approved_date", label: "Approved", render: (row) => formatDate(row.approved_date) },
               { key: "select", label: "Select", render: (row) => <button type="button" className="font-semibold text-sky-700 hover:text-sky-900" onClick={() => setSelectedId(row.id)}>Edit</button> },
             ]}

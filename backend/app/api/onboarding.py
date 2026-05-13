@@ -15,6 +15,7 @@ from app.models.user import User
 from app.schemas.onboarding import (
     AgentOnboardingProgressRead,
     AgentOnboardingProgressUpdate,
+    OnboardingApprovalRequest,
     OnboardingStepCreate,
     OnboardingStepRead,
     OnboardingStepUpdate,
@@ -214,6 +215,7 @@ def update_agent_onboarding_progress(
 def approve_agent_onboarding_progress(
     agent_profile_id: int,
     progress_id: int,
+    request: OnboardingApprovalRequest | None = None,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> AgentOnboardingProgress:
@@ -236,6 +238,8 @@ def approve_agent_onboarding_progress(
     progress.completed_by = progress.completed_by or current_user.id
     progress.approved_by = current_user.id
     progress.approved_date = date.today()
+    if request is not None and request.admin_notes is not None:
+        progress.admin_notes = request.admin_notes
 
     db.commit()
     db.refresh(progress)

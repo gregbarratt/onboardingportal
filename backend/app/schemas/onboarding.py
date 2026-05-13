@@ -116,3 +116,12 @@ class AgentOnboardingProgressRead(BaseModel):
     step: OnboardingStepRead
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class OnboardingApprovalRequest(BaseModel):
+    admin_notes: str | None = None
+
+    @field_validator("admin_notes")
+    @classmethod
+    def admin_notes_can_be_blank(cls, value: str | None) -> str | None:
+        return clean_optional_text(value)
