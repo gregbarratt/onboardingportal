@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 
+from app.api.audit import router as audit_router
 from app.api.agents import router as agents_router
 from app.api.auth import router as auth_router
 from app.api.certificates import router as certificates_router
@@ -20,6 +21,7 @@ app = FastAPI(
 
 app.include_router(auth_router)
 app.include_router(agents_router)
+app.include_router(audit_router)
 app.include_router(memberships_router)
 app.include_router(onboarding_router)
 app.include_router(training_router)

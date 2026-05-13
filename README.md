@@ -40,6 +40,7 @@ Each completed phase will be saved as a commit. A commit is like a labelled chec
 - Phase 11: Compliance centre
 - Phase 12: Certificates
 - Phase 13: Supplier access and marketing hub
+- Phase 14: Audit logs and admin notes
 
 ## Backend
 
@@ -325,3 +326,40 @@ Supplier and marketing endpoints:
 - `POST /supplier-access`
 - `GET /marketing-assets`
 - `POST /marketing-assets`
+
+## Audit Logs and Admin Notes
+
+Audit logs are the compliance history of the system. They record important actions such as account creation, payment changes, document checks, training progress, call attendance, approval to trade, suspensions, access changes, and module updates.
+
+Admin notes are private internal notes for the One Travel Club team. Agents cannot see admin notes.
+
+This phase adds the storage and viewing area for audit logs, plus admin-only notes on an agent file. When an admin note is added, the system also creates an audit log entry.
+
+Audit action types are:
+
+- Account created
+- Agreement signed
+- Payment setup completed
+- Payment status changed
+- Membership status changed
+- Document uploaded
+- Document verified
+- Training module started
+- Training module completed
+- Quiz failed
+- Quiz passed
+- Call attendance marked
+- Agent approved to trade
+- Agent suspended
+- Access level changed
+- Admin note added
+- Module created
+- Module edited
+- Module archived
+
+Audit and admin note endpoints:
+
+- `GET /audit-logs`
+- `GET /agents/{id}/audit-logs`
+- `POST /agents/{id}/admin-notes`
+- `GET /agents/{id}/admin-notes`

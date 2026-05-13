@@ -1,0 +1,23 @@
+AUDIT_ACTION_TYPES = (
+    "Account created",
+    "Agreement signed",
+    "Payment setup completed",
+    "Payment status changed",
+    "Membership status changed",
+    "Document uploaded",
+    "Document verified",
+    "Training module started",
+    "Training module completed",
+    "Quiz failed",
+    "Quiz passed",
+    "Call attendance marked",
+    "Agent approved to trade",
+    "Agent suspended",
+    "Access level changed",
+    "Admin note added",
+    "Module created",
+    "Module edited",
+    "Module archived",
+)
+
+ADMIN_NOTE_ADDED_ACTION = "Admin note added"

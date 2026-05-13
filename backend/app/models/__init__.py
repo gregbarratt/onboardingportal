@@ -1,3 +1,4 @@
+from app.models.audit import AdminNote, AuditLog
 from app.models.agent_profile import AgentProfile
 from app.models.certificate import Certificate
 from app.models.compliance import CompliancePolicy, PolicyAcceptance
@@ -20,7 +21,9 @@ __all__ = [
     "AgentOnboardingProgress",
     "AgentTrainingProgress",
     "AgentProfile",
+    "AdminNote",
     "AttendanceLog",
+    "AuditLog",
     "Certificate",
     "CompliancePolicy",
     "Document",

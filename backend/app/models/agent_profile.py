@@ -10,6 +10,7 @@ from app.core.agent_statuses import DEFAULT_AGENT_STATUS
 from app.db.base import Base
 
 if TYPE_CHECKING:
+    from app.models.audit import AdminNote, AuditLog
     from app.models.certificate import Certificate
     from app.models.compliance import PolicyAcceptance
     from app.models.document import Document
@@ -98,6 +99,14 @@ class AgentProfile(Base):
         cascade="all, delete-orphan",
     )
     certificates: Mapped[list[Certificate]] = relationship(
+        back_populates="agent",
+        cascade="all, delete-orphan",
+    )
+    audit_logs: Mapped[list[AuditLog]] = relationship(
+        back_populates="agent",
+        cascade="all, delete-orphan",
+    )
+    admin_notes: Mapped[list[AdminNote]] = relationship(
         back_populates="agent",
         cascade="all, delete-orphan",
     )
