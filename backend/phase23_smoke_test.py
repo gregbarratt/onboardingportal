@@ -144,6 +144,11 @@ def test_membership_and_payment(admin_headers: dict[str, str], agent: dict[str, 
         client.post(f"/agents/{agent['id']}/stripe/subscriptions/sync", headers=admin_headers),
         400,
     )
+    assert_status(
+        "Stripe billing portal needs configuration",
+        client.post(f"/agents/{agent['id']}/stripe/billing-portal", headers=admin_headers),
+        400,
+    )
 
     assert_status(
         "agent blocked from creating payment",

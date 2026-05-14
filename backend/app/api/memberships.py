@@ -22,6 +22,7 @@ from app.schemas.membership import (
     MembershipUpdate,
     PaymentCreate,
     PaymentRead,
+    StripeBillingPortalSessionRead,
     StripeCustomerCandidateRead,
     StripeCustomerLinkRequest,
     StripeInvoiceRead,
@@ -32,6 +33,7 @@ from app.schemas.membership import (
 from app.services.audit import create_audit_log
 from app.services.stripe import (
     StripeIntegrationError,
+    create_billing_portal_session,
     create_stripe_customer,
     list_stripe_invoices,
     list_stripe_subscriptions,
@@ -244,6 +246,45 @@ def create_or_link_stripe_customer(
 
     db.refresh(membership)
     return membership
+
+
+@router.post("/{agent_profile_id}/stripe/billing-portal", response_model=StripeBillingPortalSessionRead)
+def create_agent_billing_portal_session(
+    agent_profile_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> dict:
+    agent_profile = get_agent_or_404(db, agent_profile_id)
+    check_agent_access(agent_profile, current_user)
+    membership = get_membership_or_404(db, agent_profile.id)
+    if not membership.stripe_customer_id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This agent is not linked to a Stripe customer yet.",
+        )
+
+    return_path = f"/admin/agents/{agent_profile.id}/membership" if is_admin_user(current_user) else "/membership"
+
+    try:
+        session = create_billing_portal_session(
+            membership.stripe_customer_id,
+            return_path=return_path,
+        )
+    except StripeIntegrationError as exc:
+        raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
+
+    portal_url = session.get("url")
+    if not portal_url:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Stripe did not return a billing portal link.",
+        )
+
+    return {
+        "stripe_customer_id": membership.stripe_customer_id,
+        "session_id": session.get("id"),
+        "url": portal_url,
+    }
 
 
 @router.get("/{agent_profile_id}/stripe/customers/search", response_model=list[StripeCustomerCandidateRead])

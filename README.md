@@ -21,7 +21,7 @@ The frontend is the visible portal in the browser. It is built with React and Ta
 - Agent profile management
 - Agent CSV import with Stripe ID fields
 - Membership and payment tracking
-- Stripe customer, subscription, and invoice sync support
+- Stripe customer, subscription, invoice sync, and billing portal support
 - Onboarding checklist with admin approval
 - Training Academy
 - Further Training
@@ -45,7 +45,7 @@ The frontend is the visible portal in the browser. It is built with React and Ta
 - Marketing Hub is locked until the social media and advertising policy has been accepted.
 - Further Training is locked until mandatory onboarding training is complete.
 - An agent cannot be Approved to Trade until the final approval checks are complete.
-- Stripe can be connected to register agents through Stripe Checkout, then read customer subscriptions, invoices, and payment status.
+- Stripe can be connected to register agents through Stripe Checkout, then read customer subscriptions, invoices, payment status, and send agents to Stripe's secure billing portal for card updates.
 
 The final approval checks include:
 
@@ -295,6 +295,7 @@ Before a real launch:
 - Review security settings.
 - Move uploaded documents from local storage to proper cloud file storage.
 - Connect Stripe using real Stripe keys.
+- Enable Stripe's hosted customer portal if agents need to update card details or manage billing.
 - Check compliance wording with the business.
 - Run the smoke test and a manual user test.
 

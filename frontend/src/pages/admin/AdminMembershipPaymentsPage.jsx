@@ -1,4 +1,4 @@
-import { Link2, Plus, RefreshCw, Save, Search, UserPlus } from "lucide-react";
+import { ExternalLink, Link2, Plus, RefreshCw, Save, Search, UserPlus } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
@@ -196,6 +196,7 @@ function MembershipDetail({ agentId }) {
   const [saving, setSaving] = useState(false);
   const [addingPayment, setAddingPayment] = useState(false);
   const [stripeBusy, setStripeBusy] = useState(false);
+  const [billingPortalBusy, setBillingPortalBusy] = useState(false);
   const [stripeSearching, setStripeSearching] = useState(false);
   const [stripeMatches, setStripeMatches] = useState([]);
   const [stripeSearchDone, setStripeSearchDone] = useState(false);
@@ -384,6 +385,22 @@ function MembershipDetail({ agentId }) {
     }
   }
 
+  async function openBillingPortal() {
+    setBillingPortalBusy(true);
+    setError("");
+    setMessage("");
+
+    try {
+      const session = await apiClient.post(`/agents/${agentId}/stripe/billing-portal`, {}, token);
+      window.open(session.url, "_blank", "noopener,noreferrer");
+      setMessage("Stripe billing portal opened in a new tab.");
+    } catch (err) {
+      setError(getFriendlyError(err, "We could not open the Stripe billing portal."));
+    } finally {
+      setBillingPortalBusy(false);
+    }
+  }
+
   const paymentRows = useMemo(() => payments.data || [], [payments.data]);
 
   if (agent.loading || payments.loading) {
@@ -430,6 +447,9 @@ function MembershipDetail({ agentId }) {
                 </SecondaryButton>
                 <SecondaryButton type="button" icon={RefreshCw} disabled={stripeBusy || !membershipForm.stripe_customer_id} onClick={syncStripeSubscription}>
                   {stripeBusy ? "Working..." : "Sync subscription"}
+                </SecondaryButton>
+                <SecondaryButton type="button" icon={ExternalLink} disabled={billingPortalBusy || !membershipForm.stripe_customer_id} onClick={openBillingPortal}>
+                  {billingPortalBusy ? "Opening..." : "Open billing portal"}
                 </SecondaryButton>
               </div>
             }

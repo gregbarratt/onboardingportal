@@ -1,7 +1,10 @@
-import { CreditCard, ReceiptText } from "lucide-react";
+import { useState } from "react";
+import { CreditCard, ExternalLink, ReceiptText } from "lucide-react";
 
-import { Card, DataTable, ErrorBanner, LoadingState, StatCard, StatusBadge } from "../../components/ui.jsx";
-import { useAgentResource } from "../../hooks/useAgentPortalData.js";
+import { apiClient } from "../../api/client.js";
+import { Card, DataTable, ErrorBanner, LoadingState, SecondaryButton, StatCard, StatusBadge } from "../../components/ui.jsx";
+import { useAuth } from "../../context/AuthContext.jsx";
+import { getFriendlyError, useAgentResource } from "../../hooks/useAgentPortalData.js";
 import { formatDate, formatMoney } from "../../utils/formatters.js";
 import AgentPageShell from "./AgentPageShell.jsx";
 
@@ -17,6 +20,9 @@ export default function MembershipPaymentsPage() {
 }
 
 function MembershipContent({ profile }) {
+  const { token } = useAuth();
+  const [billingLoading, setBillingLoading] = useState(false);
+  const [billingError, setBillingError] = useState("");
   const membership = useAgentResource(profile, (id) => `/agents/${id}/membership`, {
     fallbackError: "Membership has not been set up for this agent yet.",
   });
@@ -35,12 +41,28 @@ function MembershipContent({ profile }) {
 
   const paymentRows = payments.data || [];
   const invoiceRows = stripeInvoices.data || [];
+  const canManageBilling = Boolean(membership.data?.stripe_customer_id);
+
+  async function openBillingPortal() {
+    setBillingLoading(true);
+    setBillingError("");
+
+    try {
+      const session = await apiClient.post(`/agents/${profile.id}/stripe/billing-portal`, {}, token);
+      window.location.assign(session.url);
+    } catch (err) {
+      setBillingError(getFriendlyError(err, "We could not open Stripe billing management."));
+    } finally {
+      setBillingLoading(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
       {membership.error ? <ErrorBanner message={membership.error} /> : null}
       {payments.error ? <ErrorBanner message={payments.error} /> : null}
       {stripeInvoices.error ? <ErrorBanner message={stripeInvoices.error} /> : null}
+      {billingError ? <ErrorBanner message={billingError} /> : null}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
         <StatCard label="Membership status" value={membership.data?.membership_status || "Not set"} icon={CreditCard} />
@@ -59,7 +81,14 @@ function MembershipContent({ profile }) {
         />
       </div>
 
-      <Card title="Membership Details">
+      <Card
+        title="Membership Details"
+        actions={
+          <SecondaryButton type="button" icon={ExternalLink} disabled={!canManageBilling || billingLoading} onClick={openBillingPortal}>
+            {billingLoading ? "Opening Stripe..." : "Manage billing in Stripe"}
+          </SecondaryButton>
+        }
+      >
         {membership.data ? (
           <dl className="grid gap-4 text-sm md:grid-cols-3">
             <Detail label="Membership type" value={membership.data.membership_type} />
@@ -78,6 +107,11 @@ function MembershipContent({ profile }) {
         ) : (
           <p className="text-sm text-slate-600">The admin team has not added membership details yet.</p>
         )}
+        {!canManageBilling && membership.data ? (
+          <p className="mt-4 rounded-lg border border-amber-200 bg-amber-50 p-3 text-sm text-amber-800">
+            Billing management will unlock once your Stripe customer record is linked.
+          </p>
+        ) : null}
       </Card>
 
       <Card title="Payment Records" description="This is a read-only list for agents. Admin can update payment status.">

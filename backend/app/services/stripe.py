@@ -246,6 +246,26 @@ def list_stripe_subscriptions(customer_id: str, limit: int = 20) -> list[dict[st
     ]
 
 
+def create_billing_portal_session(customer_id: str, return_path: str = "/membership") -> dict[str, Any]:
+    ensure_stripe_ready()
+    customer_id = customer_id.strip()
+    if not customer_id:
+        raise StripeIntegrationError("This membership does not have a Stripe customer ID.")
+
+    safe_return_path = return_path if return_path.startswith("/") else "/membership"
+    return_url = f"{settings.frontend_url.rstrip('/')}{safe_return_path}"
+
+    try:
+        session = stripe_sdk.billing_portal.Session.create(
+            customer=customer_id,
+            return_url=return_url,
+        )
+    except Exception as exc:  # pragma: no cover - depends on Stripe API/network
+        raise StripeIntegrationError(f"Stripe billing portal could not be opened: {exc}") from exc
+
+    return stripe_object_to_dict(session)
+
+
 def create_stripe_subscription(membership: Membership) -> dict[str, Any]:
     ensure_stripe_ready()
     if not membership.stripe_customer_id:

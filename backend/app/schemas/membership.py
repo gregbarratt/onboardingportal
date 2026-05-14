@@ -172,6 +172,12 @@ class StripeSubscriptionSyncResponse(BaseModel):
     subscription: StripeSubscriptionRead | None = None
 
 
+class StripeBillingPortalSessionRead(BaseModel):
+    stripe_customer_id: str
+    session_id: str | None = None
+    url: str
+
+
 class PaymentCreate(BaseModel):
     amount: Decimal = Field(ge=0, decimal_places=2)
     currency: str = Field(default=DEFAULT_CURRENCY, min_length=3, max_length=3)

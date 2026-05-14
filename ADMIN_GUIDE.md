@@ -370,10 +370,13 @@ This version includes:
 - Syncing imported agents against live Stripe payments
 - Syncing live subscription status into membership status
 - Syncing Stripe invoices into portal payment records
+- Opening the Stripe billing portal so agents can update card details and view subscription billing securely
 - Showing invoice links and PDF links to agents
 - Webhook handling for paid invoices, failed invoices, and cancelled subscriptions
 
 Start with Stripe test keys. Do not use live keys until the business is ready to connect live billing data. The public registration payment flow needs `STRIPE_AGENT_MONTHLY_PRICE_ID`; `STRIPE_AGENT_SETUP_PRICE_ID` is optional if a setup fee is charged.
+
+Stripe billing management uses Stripe's hosted customer portal. Card details are never stored in the One Travel Club portal. Enable the customer portal settings inside Stripe so agents can update payment methods and view invoices.
 
 ## Routine Admin Checks
 
