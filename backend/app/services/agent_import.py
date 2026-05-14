@@ -159,6 +159,7 @@ def import_agents_from_csv(
         "created": 0,
         "updated": 0,
         "skipped": 0,
+        "stripe_sync_queued": 0,
         "stripe_synced": 0,
         "stripe_sync_failed": 0,
         "stripe_profiles_synced": 0,
@@ -166,6 +167,7 @@ def import_agents_from_csv(
         "stripe_invoices_synced": 0,
         "stripe_subscriptions_synced": 0,
         "errors": [],
+        "_stripe_sync_agent_ids": [],
     }
 
     for row_number, row in rows:
@@ -181,27 +183,11 @@ def import_agents_from_csv(
                 result[action] += 1
 
             if request.sync_stripe_after_import and action != "skipped":
-                try:
-                    sync_result = sync_imported_agent_stripe(
-                        db,
-                        agent_profile=agent_profile,
-                        current_user=current_user,
-                    )
-                    result["stripe_synced"] += sync_result["stripe_synced"]
-                    result["stripe_sync_failed"] += sync_result["stripe_sync_failed"]
-                    result["stripe_profiles_synced"] += sync_result["stripe_profiles_synced"]
-                    result["stripe_profile_fields_synced"] += sync_result["stripe_profile_fields_synced"]
-                    result["stripe_invoices_synced"] += sync_result["stripe_invoices_synced"]
-                    result["stripe_subscriptions_synced"] += sync_result["stripe_subscriptions_synced"]
-                except AgentImportRowError as exc:
-                    result["stripe_sync_failed"] += 1
-                    result["errors"].append(
-                        {
-                            "row_number": row_number,
-                            "identifier": identifier,
-                            "message": str(exc),
-                        }
-                    )
+                stripe_customer_id = db.scalar(
+                    select(Membership.stripe_customer_id).where(Membership.agent_id == agent_profile.id)
+                )
+                if stripe_customer_id:
+                    result["_stripe_sync_agent_ids"].append(agent_profile.id)
         except (AgentImportRowError, IntegrityError, ValueError) as exc:
             result["errors"].append(
                 {
@@ -212,6 +198,8 @@ def import_agents_from_csv(
             )
 
     db.commit()
+    result["_stripe_sync_agent_ids"] = list(dict.fromkeys(result["_stripe_sync_agent_ids"]))
+    result["stripe_sync_queued"] = len(result["_stripe_sync_agent_ids"])
     result["next_agent_id"] = generate_next_agent_id(db)
     return result
 

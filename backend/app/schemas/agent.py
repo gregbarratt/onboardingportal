@@ -203,6 +203,7 @@ class AgentCsvImportResponse(BaseModel):
     created: int
     updated: int
     skipped: int
+    stripe_sync_queued: int = 0
     stripe_synced: int = 0
     stripe_sync_failed: int = 0
     stripe_profiles_synced: int = 0

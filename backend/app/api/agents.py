@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException, status
+from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -6,7 +6,7 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_active_user
 from app.core.agent_statuses import DEFAULT_AGENT_STATUS
 from app.core.roles import ADMIN_ROLE_NAMES
-from app.db.session import get_db
+from app.db.session import SessionLocal, get_db
 from app.models.agent_profile import AgentProfile
 from app.models.user import User
 from app.schemas.agent import (
@@ -18,7 +18,7 @@ from app.schemas.agent import (
     FinalApprovalStatusRead,
 )
 from app.services.agent_ids import generate_next_agent_id
-from app.services.agent_import import import_agents_from_csv
+from app.services.agent_import import AgentImportRowError, import_agents_from_csv, sync_imported_agent_stripe
 from app.services.final_approval import approve_agent_to_trade, build_final_approval_status
 from app.services.organizations import (
     can_manage_all_organizations,
@@ -167,6 +167,7 @@ def list_agent_profiles(
 @router.post("/import/csv", response_model=AgentCsvImportResponse)
 def import_agent_csv(
     request: AgentCsvImportRequest,
+    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> dict:
@@ -176,7 +177,39 @@ def import_agent_csv(
             detail="Only admins can import agents.",
         )
 
-    return import_agents_from_csv(db, request, current_user=current_user)
+    result = import_agents_from_csv(db, request, current_user=current_user)
+    stripe_sync_agent_ids = result.pop("_stripe_sync_agent_ids", [])
+    if stripe_sync_agent_ids:
+        background_tasks.add_task(
+            sync_imported_agents_stripe_background,
+            stripe_sync_agent_ids,
+            current_user.id,
+        )
+    return result
+
+
+def sync_imported_agents_stripe_background(agent_profile_ids: list[int], current_user_id: int) -> None:
+    db = SessionLocal()
+    try:
+        current_user = db.get(User, current_user_id)
+        if current_user is None:
+            return
+
+        for agent_profile_id in agent_profile_ids:
+            agent_profile = db.get(AgentProfile, agent_profile_id)
+            if agent_profile is None:
+                continue
+            try:
+                sync_imported_agent_stripe(
+                    db,
+                    agent_profile=agent_profile,
+                    current_user=current_user,
+                )
+                db.commit()
+            except AgentImportRowError:
+                db.rollback()
+    finally:
+        db.close()
 
 
 @router.get("/{agent_profile_id}", response_model=AgentProfileRead)

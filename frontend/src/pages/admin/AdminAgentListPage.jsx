@@ -80,7 +80,7 @@ export default function AdminAgentListPage() {
 
         <Card
           title="Import Agents"
-          description="Upload the completed CSV to create or update agent profiles, membership details, and Stripe IDs. If no organisation is named in the CSV, agents are added to your organisation. If Stripe sync is switched on, the portal will also pull live invoices and subscription status for imported Stripe customers."
+          description="Upload the completed CSV to create or update agent profiles, membership details, and Stripe IDs. If no organisation is named in the CSV, agents are added to your organisation. If Stripe sync is switched on, the portal will queue a live payment refresh in the background so this screen stays quick."
           actions={
             <a
               className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
@@ -109,7 +109,7 @@ export default function AdminAgentListPage() {
                 onChange={(event) => setSyncStripeAfterImport(event.target.checked)}
                 className="h-4 w-4 rounded border-slate-300 text-teal-700 focus:ring-teal-700"
               />
-              Sync live Stripe payments after import
+              Queue live Stripe payments after import
             </label>
             <PrimaryButton type="submit" icon={importing ? FileUp : Upload} disabled={importing}>
               {importing ? "Importing..." : "Import agents"}
@@ -124,6 +124,7 @@ export default function AdminAgentListPage() {
                 <ImportStat label="Updated" value={importResult.updated} />
                 <ImportStat label="Skipped" value={importResult.skipped} />
                 <ImportStat label="Next ID" value={importResult.next_agent_id} />
+                <ImportStat label="Stripe queued" value={importResult.stripe_sync_queued} />
                 <ImportStat label="Stripe synced" value={importResult.stripe_synced} />
                 <ImportStat label="Stripe issues" value={importResult.stripe_sync_failed} />
                 <ImportStat label="Profiles enriched" value={importResult.stripe_profiles_synced} />
@@ -143,7 +144,7 @@ export default function AdminAgentListPage() {
                 />
               ) : (
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-700">
-                  Import completed with no row errors.
+                  Import completed with no row errors. Stripe payment data will continue refreshing in the background where queued.
                 </div>
               )}
             </div>
