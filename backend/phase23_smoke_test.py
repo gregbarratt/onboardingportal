@@ -62,6 +62,9 @@ def run_smoke_tests() -> None:
 
     agents = assert_json("admin agent list", client.get("/agents", headers=admin_headers), 200)
     assert len(agents) >= 5, "Expected at least five demo agents."
+    onboarding_summary = assert_json("admin onboarding summary", client.get("/admin/onboarding-summary", headers=admin_headers), 200)
+    assert len(onboarding_summary) >= 5, "Expected onboarding summary to include demo agents."
+    assert "total_steps" in onboarding_summary[0], "Onboarding summary did not include checklist totals."
 
     own_agent_list = assert_json("agent own profile list", client.get("/agents", headers=agent_headers), 200)
     assert len(own_agent_list) == 1, "Agent should only see their own profile."

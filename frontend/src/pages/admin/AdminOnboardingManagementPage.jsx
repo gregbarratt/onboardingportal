@@ -17,7 +17,7 @@ import {
 } from "../../components/ui.jsx";
 import { apiClient } from "../../api/client.js";
 import { useAuth } from "../../context/AuthContext.jsx";
-import { buildAgentName, useAdminAgentRecords, useAgent, useAgents } from "../../hooks/useAdminData.js";
+import { buildAgentName, useAgent } from "../../hooks/useAdminData.js";
 import { getFriendlyError, useApiResource } from "../../hooks/useAgentPortalData.js";
 import { formatDate, percentage } from "../../utils/formatters.js";
 import { onboardingStatuses } from "./adminConstants.js";
@@ -44,38 +44,32 @@ export default function AdminOnboardingManagementPage() {
 }
 
 function OnboardingOverview() {
-  const agents = useAgents();
-  const onboarding = useAdminAgentRecords(agents.data, "onboarding");
+  const onboarding = useApiResource("/admin/onboarding-summary", {
+    initialData: [],
+    fallbackError: "We could not load onboarding summaries.",
+  });
 
-  if (agents.loading || onboarding.loading) {
+  if (onboarding.loading) {
     return (
       <AdminPageShell title="Onboarding Management" description="Review agent checklist progress.">
-        <LoadingState message="Loading onboarding records..." />
+        <LoadingState message="Loading onboarding summaries..." />
       </AdminPageShell>
     );
   }
 
-  const summaries = (agents.data || []).map((agent) => {
-    const rows = onboarding.records.filter((item) => item.agent.id === agent.id);
-    const complete = rows.filter((item) => item.completion_status === "Complete").length;
-    const awaitingReview = rows.filter((item) => item.completion_status === "Awaiting Review").length;
-
-    return { ...agent, totalSteps: rows.length, completeSteps: complete, awaitingReview };
-  });
-
   return (
     <AdminPageShell title="Onboarding Management" description="Track checklist progress and open an agent to approve steps.">
       <div className="space-y-6">
-        <ErrorBanner message={agents.error || onboarding.error} />
+        <ErrorBanner message={onboarding.error} />
         <Card title="Agent Checklist Progress">
           <DataTable
-            rows={summaries}
+            rows={onboarding.data || []}
             emptyMessage="No agents are available yet."
             columns={[
               { key: "agent", label: "Agent", render: (row) => <Link className="font-semibold text-sky-700 hover:text-sky-900" to={`/admin/agents/${row.id}/onboarding`}>{buildAgentName(row)}</Link> },
               { key: "status", label: "Agent status", render: (row) => <StatusBadge status={row.status} /> },
-              { key: "progress", label: "Progress", render: (row) => `${row.completeSteps}/${row.totalSteps}` },
-              { key: "awaitingReview", label: "Awaiting review" },
+              { key: "progress", label: "Progress", render: (row) => `${row.complete_steps}/${row.total_steps}` },
+              { key: "awaiting_review", label: "Awaiting review" },
               { key: "open", label: "Open", render: (row) => <Link className="font-semibold text-sky-700 hover:text-sky-900" to={`/admin/agents/${row.id}/onboarding`}>Manage</Link> },
             ]}
           />

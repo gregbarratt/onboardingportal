@@ -118,6 +118,19 @@ class AgentOnboardingProgressRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class AdminOnboardingSummaryRead(BaseModel):
+    id: int
+    agent_id: str
+    first_name: str
+    last_name: str
+    email: str
+    business_name: str | None = None
+    status: str
+    total_steps: int
+    complete_steps: int
+    awaiting_review: int
+
+
 class OnboardingApprovalRequest(BaseModel):
     admin_notes: str | None = None
 

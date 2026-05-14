@@ -1,7 +1,7 @@
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
@@ -13,6 +13,7 @@ from app.models.agent_profile import AgentProfile
 from app.models.onboarding import AgentOnboardingProgress, OnboardingStep
 from app.models.user import User
 from app.schemas.onboarding import (
+    AdminOnboardingSummaryRead,
     AgentOnboardingProgressRead,
     AgentOnboardingProgressUpdate,
     OnboardingApprovalRequest,
@@ -20,6 +21,7 @@ from app.schemas.onboarding import (
     OnboardingStepRead,
     OnboardingStepUpdate,
 )
+from app.services.organizations import can_manage_all_organizations
 
 
 router = APIRouter(tags=["Onboarding"])
@@ -141,6 +143,64 @@ def update_onboarding_step(
 
     db.refresh(step)
     return step
+
+
+@router.get("/admin/onboarding-summary", response_model=list[AdminOnboardingSummaryRead])
+def list_admin_onboarding_summary(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> list[dict]:
+    if not is_admin_user(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can view onboarding summaries.",
+        )
+
+    agent_query = select(AgentProfile).order_by(AgentProfile.id)
+    if not can_manage_all_organizations(current_user):
+        if current_user.organization_id is None:
+            return []
+        agent_query = agent_query.where(AgentProfile.organization_id == current_user.organization_id)
+
+    agents = list(db.scalars(agent_query))
+    agent_ids = [agent.id for agent in agents]
+    total_steps = db.scalar(select(func.count(OnboardingStep.id))) or 0
+    counts_by_agent: dict[int, dict[str, int]] = {
+        agent.id: {"complete_steps": 0, "awaiting_review": 0}
+        for agent in agents
+    }
+
+    if agent_ids:
+        rows = db.execute(
+            select(
+                AgentOnboardingProgress.agent_id,
+                AgentOnboardingProgress.completion_status,
+                func.count(AgentOnboardingProgress.id),
+            )
+            .where(AgentOnboardingProgress.agent_id.in_(agent_ids))
+            .group_by(AgentOnboardingProgress.agent_id, AgentOnboardingProgress.completion_status)
+        )
+        for agent_id, completion_status, count in rows:
+            if completion_status == "Complete":
+                counts_by_agent[agent_id]["complete_steps"] = count
+            elif completion_status == "Awaiting Review":
+                counts_by_agent[agent_id]["awaiting_review"] = count
+
+    return [
+        {
+            "id": agent.id,
+            "agent_id": agent.agent_id,
+            "first_name": agent.first_name,
+            "last_name": agent.last_name,
+            "email": agent.email,
+            "business_name": agent.business_name,
+            "status": agent.status,
+            "total_steps": total_steps,
+            "complete_steps": counts_by_agent[agent.id]["complete_steps"],
+            "awaiting_review": counts_by_agent[agent.id]["awaiting_review"],
+        }
+        for agent in agents
+    ]
 
 
 @router.get("/agents/{agent_profile_id}/onboarding", response_model=list[AgentOnboardingProgressRead])
