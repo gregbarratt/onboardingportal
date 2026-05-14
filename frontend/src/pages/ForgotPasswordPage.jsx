@@ -1,33 +1,29 @@
-import { ArrowRight, Loader2, LockKeyhole } from "lucide-react";
+import { ArrowLeft, ArrowRight, CheckCircle2, Loader2, LockKeyhole } from "lucide-react";
 import { useState } from "react";
-import { Link, Navigate, useLocation, useNavigate } from "react-router-dom";
+import { Link } from "react-router-dom";
 
-import { useAuth } from "../context/AuthContext.jsx";
+import { apiClient } from "../api/client.js";
 
-export default function LoginPage() {
-  const navigate = useNavigate();
-  const location = useLocation();
-  const { isAuthenticated, login } = useAuth();
+export default function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
+  const [message, setMessage] = useState("");
+  const [resetUrl, setResetUrl] = useState("");
   const [error, setError] = useState("");
   const [submitting, setSubmitting] = useState(false);
-
-  if (isAuthenticated) {
-    return <Navigate to="/dashboard" replace />;
-  }
 
   async function handleSubmit(event) {
     event.preventDefault();
     setSubmitting(true);
     setError("");
+    setMessage("");
+    setResetUrl("");
 
     try {
-      await login(email, password);
-      const destination = location.state?.from?.pathname || "/dashboard";
-      navigate(destination, { replace: true });
-    } catch (loginError) {
-      setError(loginError.message || "Login failed.");
+      const response = await apiClient.post("/auth/password-reset/request", { email });
+      setMessage(response.message || "If this email belongs to a portal account, password reset instructions will be sent.");
+      setResetUrl(response.reset_url || "");
+    } catch (err) {
+      setError(err.message || "Password reset could not be started.");
     } finally {
       setSubmitting(false);
     }
@@ -41,18 +37,31 @@ export default function LoginPage() {
             <LockKeyhole size={21} />
           </div>
           <div>
-            <h1 className="text-xl font-bold text-ink">Travel Agent Onboarding Hub</h1>
+            <h1 className="text-xl font-bold text-ink">Reset your password</h1>
             <p className="text-sm text-slate-500">One Travel Club secure portal</p>
           </div>
         </div>
+
+        {message ? (
+          <div className="mb-5 rounded-lg border border-emerald-200 bg-emerald-50 px-3 py-3 text-sm text-emerald-700">
+            <div className="flex gap-2">
+              <CheckCircle2 className="mt-0.5 h-4 w-4 shrink-0" aria-hidden="true" />
+              <p>{message}</p>
+            </div>
+            {resetUrl ? (
+              <a className="mt-3 inline-flex items-center gap-2 font-semibold text-sky-700 hover:text-sky-900" href={resetUrl}>
+                Open reset page <ArrowRight size={16} />
+              </a>
+            ) : null}
+          </div>
+        ) : null}
 
         <form className="space-y-5" onSubmit={handleSubmit}>
           <label className="block">
             <span className="mb-1.5 block text-sm font-semibold text-slate-700">Email</span>
             <input
               className="focus-ring w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-ink"
-              type="text"
-              inputMode="email"
+              type="email"
               value={email}
               onChange={(event) => setEmail(event.target.value)}
               autoComplete="email"
@@ -60,28 +69,11 @@ export default function LoginPage() {
             />
           </label>
 
-          <label className="block">
-            <span className="mb-1.5 flex items-center justify-between gap-3 text-sm font-semibold text-slate-700">
-              Password
-              <Link className="text-xs font-semibold text-sky-700 hover:text-sky-900" to="/forgot-password">
-                Forgot password?
-              </Link>
-            </span>
-            <input
-              className="focus-ring w-full rounded-lg border border-slate-300 px-3 py-2.5 text-sm text-ink"
-              type="password"
-              value={password}
-              onChange={(event) => setPassword(event.target.value)}
-              autoComplete="current-password"
-              required
-            />
-          </label>
-
-          {error && (
+          {error ? (
             <div className="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">
               {error}
             </div>
-          )}
+          ) : null}
 
           <button
             type="submit"
@@ -89,13 +81,13 @@ export default function LoginPage() {
             className="focus-ring inline-flex w-full items-center justify-center gap-2 rounded-lg bg-sea px-4 py-2.5 text-sm font-bold text-white hover:bg-teal-800 disabled:cursor-not-allowed disabled:opacity-70"
           >
             {submitting ? <Loader2 className="animate-spin" size={18} /> : <ArrowRight size={18} />}
-            Sign in
+            Send reset instructions
           </button>
         </form>
+
         <p className="mt-5 text-center text-sm text-slate-600">
-          New agent?{" "}
-          <Link className="font-semibold text-sky-700 hover:text-sky-900" to="/register">
-            Register and set up payment
+          <Link className="inline-flex items-center gap-2 font-semibold text-sky-700 hover:text-sky-900" to="/login">
+            <ArrowLeft size={16} /> Back to sign in
           </Link>
         </p>
       </section>

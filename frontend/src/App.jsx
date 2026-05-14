@@ -32,10 +32,12 @@ import AdminReportsPage from "./pages/admin/AdminReportsPage.jsx";
 import AdminSettingsPage from "./pages/admin/AdminSettingsPage.jsx";
 import AdminTrainingModuleBuilderPage from "./pages/admin/AdminTrainingModuleBuilderPage.jsx";
 import AdminTrainingModulesPage from "./pages/admin/AdminTrainingModulesPage.jsx";
+import ForgotPasswordPage from "./pages/ForgotPasswordPage.jsx";
 import LoginPage from "./pages/LoginPage.jsx";
 import NotFoundPage from "./pages/NotFoundPage.jsx";
 import RegisterPage from "./pages/RegisterPage.jsx";
 import RegisterResultPage from "./pages/RegisterResultPage.jsx";
+import ResetPasswordPage from "./pages/ResetPasswordPage.jsx";
 
 const adminRoles = ["Super Admin", "Organisation Admin", "Admin", "Training Manager", "Compliance Manager"];
 
@@ -46,6 +48,8 @@ export default function App() {
     <Routes>
       <Route path="/" element={<Navigate to="/dashboard" replace />} />
       <Route path="/login" element={<LoginPage />} />
+      <Route path="/forgot-password" element={<ForgotPasswordPage />} />
+      <Route path="/reset-password" element={<ResetPasswordPage />} />
       <Route path="/register" element={<RegisterPage />} />
       <Route path="/register/success" element={<RegisterResultPage status="success" />} />
       <Route path="/register/cancel" element={<RegisterResultPage status="cancel" />} />

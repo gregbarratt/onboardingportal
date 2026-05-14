@@ -26,6 +26,13 @@ class Settings(BaseSettings):
     stripe_agent_setup_price_id: str = ""
     stripe_agent_monthly_price_id: str = ""
     stripe_nightly_sync_limit: int = 500
+    password_reset_token_expire_minutes: int = 60
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_username: str = ""
+    smtp_password: str = ""
+    smtp_from_email: str = ""
+    smtp_use_tls: bool = True
     initial_admin_email: str = ""
     initial_admin_password: str = ""
 

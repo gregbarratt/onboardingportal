@@ -8,6 +8,7 @@ from app.models.membership import Membership
 from app.models.notification import Notification
 from app.models.onboarding import AgentOnboardingProgress, OnboardingStep
 from app.models.organization import Organization
+from app.models.password_reset import PasswordResetToken
 from app.models.payment import Payment
 from app.models.resources import MarketingAsset, SupplierAccess
 from app.models.role import Role
@@ -38,6 +39,7 @@ __all__ = [
     "Notification",
     "OnboardingStep",
     "Organization",
+    "PasswordResetToken",
     "Payment",
     "PolicyAcceptance",
     "MarketingAsset",

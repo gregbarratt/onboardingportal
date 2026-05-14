@@ -1,4 +1,4 @@
-import { CheckCircle2, MessageSquarePlus, RotateCcw, Save, ShieldCheck, XCircle } from "lucide-react";
+import { CheckCircle2, Copy, KeyRound, MessageSquarePlus, RotateCcw, Save, ShieldCheck, XCircle } from "lucide-react";
 import { useEffect, useState } from "react";
 import { Link, useParams } from "react-router-dom";
 
@@ -47,6 +47,9 @@ export default function AdminAgentDetailPage() {
   const [addingNote, setAddingNote] = useState(false);
   const [approving, setApproving] = useState(false);
   const [redoingTrainingId, setRedoingTrainingId] = useState(null);
+  const [creatingResetLink, setCreatingResetLink] = useState(false);
+  const [resetLink, setResetLink] = useState("");
+  const [resetLinkCopied, setResetLinkCopied] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
 
@@ -143,6 +146,35 @@ export default function AdminAgentDetailPage() {
     }
   }
 
+  async function createPasswordResetLink() {
+    setCreatingResetLink(true);
+    setResetLink("");
+    setResetLinkCopied(false);
+    setError("");
+    setMessage("");
+
+    try {
+      const response = await apiClient.post(`/auth/users/${selectedAgent.user_id}/password-reset-link`, {}, token);
+      setResetLink(response.reset_url);
+      setMessage("Password reset link created. Send it to the agent securely.");
+    } catch (err) {
+      setError(getFriendlyError(err, "We could not create a password reset link."));
+    } finally {
+      setCreatingResetLink(false);
+    }
+  }
+
+  async function copyPasswordResetLink() {
+    if (!resetLink) return;
+
+    try {
+      await navigator.clipboard.writeText(resetLink);
+      setResetLinkCopied(true);
+    } catch {
+      setResetLinkCopied(false);
+    }
+  }
+
   if (agent.loading) {
     return (
       <AdminPageShell title="Agent Detail" description="Loading the selected agent.">
@@ -190,6 +222,32 @@ export default function AdminAgentDetailPage() {
               </div>
             </Card>
           </div>
+        ) : null}
+
+        {selectedAgent ? (
+          <Card
+            title="Password Access"
+            description="Create a secure one-time reset link if this agent cannot sign in."
+            actions={
+              <PrimaryButton type="button" icon={KeyRound} disabled={creatingResetLink} onClick={createPasswordResetLink}>
+                {creatingResetLink ? "Creating..." : "Create reset link"}
+              </PrimaryButton>
+            }
+          >
+            {resetLink ? (
+              <div className="space-y-3">
+                <div className="flex flex-col gap-2 lg:flex-row">
+                  <TextInput readOnly value={resetLink} />
+                  <SecondaryButton type="button" icon={Copy} onClick={copyPasswordResetLink}>
+                    {resetLinkCopied ? "Copied" : "Copy link"}
+                  </SecondaryButton>
+                </div>
+                <p className="text-sm text-slate-600">This link expires after 60 minutes and can only be used once.</p>
+              </div>
+            ) : (
+              <p className="text-sm text-slate-600">Use this when an agent asks for help resetting their password.</p>
+            )}
+          </Card>
         ) : null}
 
         <FinalApprovalCard

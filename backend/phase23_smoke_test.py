@@ -80,6 +80,7 @@ def run_smoke_tests() -> None:
     emma = find_agent(agents, "emma.clarke@example.com")
     david = find_agent(agents, "david.smith@example.com")
 
+    test_password_reset(admin_headers, david)
     test_agent_profile(admin_headers, david)
     test_membership_and_payment(admin_headers, mark, mark_headers)
     test_onboarding(admin_headers, emma, mark, emma_headers)
@@ -109,6 +110,27 @@ def login(email: str, password: str) -> str:
 
 def auth_headers(token: str) -> dict[str, str]:
     return {"Authorization": f"Bearer {token}"}
+
+
+def test_password_reset(admin_headers: dict[str, str], agent: dict[str, Any]) -> None:
+    reset_request = assert_json(
+        "admin password reset link",
+        client.post(f"/auth/users/{agent['user_id']}/password-reset-link", headers=admin_headers),
+        200,
+    )
+    reset_url = reset_request.get("reset_url", "")
+    assert "token=" in reset_url, "Password reset link did not include a token."
+    token = reset_url.split("token=", 1)[1]
+
+    assert_json(
+        "confirm password reset",
+        client.post(
+            "/auth/password-reset/confirm",
+            json={"token": token, "password": "Password123!"},
+        ),
+        200,
+    )
+    login(agent["email"], "Password123!")
 
 
 def test_agent_profile(headers: dict[str, str], agent: dict[str, Any]) -> None:

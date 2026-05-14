@@ -4,7 +4,8 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_current_active_user
-from app.core.roles import DEFAULT_ROLES
+from app.core.config import settings
+from app.core.roles import ADMIN_ROLE_NAMES, DEFAULT_ROLES
 from app.db.session import get_db
 from app.models.role import Role
 from app.models.agent_profile import AgentProfile
@@ -14,14 +15,26 @@ from app.schemas.auth import (
     AgentRegistrationRequest,
     AgentRegistrationResponse,
     LoginRequest,
+    PasswordResetConfirmRequest,
+    PasswordResetConfirmResponse,
+    PasswordResetLinkResponse,
+    PasswordResetRequest,
+    PasswordResetRequestResponse,
     RegisterUserRequest,
     TokenResponse,
     UserRead,
 )
 from app.services.agent_ids import generate_next_agent_id
 from app.services.audit import create_audit_log
-from app.services.organizations import ensure_default_organization
+from app.services.email import send_password_reset_email, smtp_is_configured
+from app.services.organizations import ensure_default_organization, user_can_access_organization
 from app.services.passwords import hash_password, verify_password
+from app.services.password_reset import (
+    build_password_reset_url,
+    create_password_reset_token,
+    find_valid_password_reset_token,
+    utc_now,
+)
 from app.services.stripe import (
     StripeIntegrationError,
     create_agent_registration_checkout_session,
@@ -65,6 +78,12 @@ def get_user_by_id(db: Session, user_id: int) -> User | None:
         .options(selectinload(User.role), selectinload(User.organization))
         .where(User.id == user_id)
     )
+
+
+def current_user_can_reset_user(current_user: User, target_user: User) -> bool:
+    if current_user.role.name not in ADMIN_ROLE_NAMES:
+        return False
+    return user_can_access_organization(current_user, target_user.organization_id)
 
 
 @router.post("/register", response_model=UserRead, status_code=status.HTTP_201_CREATED)
@@ -207,6 +226,118 @@ def register_agent_and_start_payment(
         "checkout_url": checkout_url,
         "message": "Registration created. Continue to Stripe to complete payment.",
     }
+
+
+@router.post("/password-reset/request", response_model=PasswordResetRequestResponse)
+def request_password_reset(
+    request: PasswordResetRequest,
+    db: Session = Depends(get_db),
+) -> PasswordResetRequestResponse:
+    message = (
+        "If this email belongs to a portal account, password reset instructions will be sent."
+        if smtp_is_configured()
+        else "If this email belongs to a portal account, the One Travel Club team can provide a reset link."
+    )
+    user = get_user_by_email(db, request.email)
+
+    if user is None or not user.is_active:
+        return PasswordResetRequestResponse(message=message)
+
+    _, raw_token = create_password_reset_token(db, user)
+    reset_url = build_password_reset_url(raw_token)
+    email_sent = False
+    try:
+        email_sent = send_password_reset_email(to_email=user.email, reset_url=reset_url)
+    except Exception:
+        email_sent = False
+
+    agent_profile = db.scalar(select(AgentProfile).where(AgentProfile.user_id == user.id))
+    create_audit_log(
+        db,
+        action_type="Password reset requested",
+        description="Password reset requested from the login page.",
+        created_by=None,
+        user_id=user.id,
+        agent_id=agent_profile.id if agent_profile else None,
+    )
+    db.commit()
+
+    return PasswordResetRequestResponse(
+        message=message,
+        reset_url=reset_url if settings.environment != "production" and not email_sent else None,
+    )
+
+
+@router.post("/password-reset/confirm", response_model=PasswordResetConfirmResponse)
+def confirm_password_reset(
+    request: PasswordResetConfirmRequest,
+    db: Session = Depends(get_db),
+) -> PasswordResetConfirmResponse:
+    reset_token = find_valid_password_reset_token(db, request.token)
+    if reset_token is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This password reset link is invalid or has expired.",
+        )
+
+    user = get_user_by_id(db, reset_token.user_id)
+    if user is None or not user.is_active:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="This password reset link is invalid or has expired.",
+        )
+
+    user.hashed_password = hash_password(request.password)
+    reset_token.used_at = utc_now()
+    agent_profile = db.scalar(select(AgentProfile).where(AgentProfile.user_id == user.id))
+    create_audit_log(
+        db,
+        action_type="Password changed",
+        description="Password changed using a password reset link.",
+        created_by=None,
+        user_id=user.id,
+        agent_id=agent_profile.id if agent_profile else None,
+    )
+    db.commit()
+    return PasswordResetConfirmResponse(message="Your password has been changed. You can now sign in.")
+
+
+@router.post("/users/{user_id}/password-reset-link", response_model=PasswordResetLinkResponse)
+def create_admin_password_reset_link(
+    user_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> PasswordResetLinkResponse:
+    target_user = get_user_by_id(db, user_id)
+    if target_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User account not found.",
+        )
+    if not current_user_can_reset_user(current_user, target_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You do not have permission to reset this user's password.",
+        )
+
+    reset_token, raw_token = create_password_reset_token(db, target_user)
+    agent_profile = db.scalar(select(AgentProfile).where(AgentProfile.user_id == target_user.id))
+    create_audit_log(
+        db,
+        action_type="Password reset requested",
+        description=f"Admin password reset link created for {target_user.email}.",
+        created_by=current_user.id,
+        user_id=target_user.id,
+        agent_id=agent_profile.id if agent_profile else None,
+    )
+    db.commit()
+
+    return PasswordResetLinkResponse(
+        user_id=target_user.id,
+        email=target_user.email,
+        reset_url=build_password_reset_url(raw_token),
+        expires_at=reset_token.expires_at,
+    )
 
 
 @router.post("/login", response_model=TokenResponse)

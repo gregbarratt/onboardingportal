@@ -14,6 +14,8 @@ AUDIT_ACTION_TYPES = (
     "Agent approved to trade",
     "Agent suspended",
     "Access level changed",
+    "Password reset requested",
+    "Password changed",
     "Admin note added",
     "Module created",
     "Module edited",

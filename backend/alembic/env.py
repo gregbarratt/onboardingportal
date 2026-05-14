@@ -21,6 +21,7 @@ from app.models import (  # noqa: F401
     Notification,
     OnboardingStep,
     Organization,
+    PasswordResetToken,
     Payment,
     PolicyAcceptance,
     Role,

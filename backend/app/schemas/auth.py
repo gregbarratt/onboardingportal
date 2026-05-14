@@ -80,6 +80,39 @@ class LoginRequest(BaseModel):
         return normalise_email(value)
 
 
+class PasswordResetRequest(BaseModel):
+    email: str = Field(min_length=3, max_length=255)
+
+    @field_validator("email")
+    @classmethod
+    def clean_email(cls, value: str) -> str:
+        value = normalise_email(value)
+        if "@" not in value or "." not in value.rsplit("@", 1)[-1]:
+            raise ValueError("Enter a valid email address.")
+        return value
+
+
+class PasswordResetRequestResponse(BaseModel):
+    message: str
+    reset_url: str | None = None
+
+
+class PasswordResetConfirmRequest(BaseModel):
+    token: str = Field(min_length=20, max_length=255)
+    password: str = Field(min_length=8, max_length=128)
+
+
+class PasswordResetConfirmResponse(BaseModel):
+    message: str
+
+
+class PasswordResetLinkResponse(BaseModel):
+    user_id: int
+    email: str
+    reset_url: str
+    expires_at: datetime
+
+
 class RoleRead(BaseModel):
     id: int
     name: str
