@@ -3,11 +3,13 @@ from decimal import Decimal
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException, status
+from pydantic import BaseModel, Field, field_validator
 from sqlalchemy import false, func, select
 from sqlalchemy.orm import Session
 
 from app.api.agents import is_admin_user
 from app.api.deps import get_current_active_user
+from app.core.config import settings
 from app.core.compliance import REQUIRED_COMPLIANCE_DOCUMENT_TYPES
 from app.db.session import get_db
 from app.models.agent_profile import AgentProfile
@@ -18,10 +20,29 @@ from app.models.live_training import AttendanceLog, LiveTrainingSession
 from app.models.membership import Membership
 from app.models.training import AgentTrainingProgress, TrainingModule
 from app.models.user import User
+from app.services.email import send_test_email, smtp_is_configured
 from app.services.organizations import can_manage_all_organizations
 
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
+
+
+class EmailTestRequest(BaseModel):
+    to_email: str = Field(min_length=3, max_length=255)
+
+    @field_validator("to_email")
+    @classmethod
+    def email_must_look_valid(cls, value: str) -> str:
+        cleaned = value.strip().lower()
+        if "@" not in cleaned or "." not in cleaned.rsplit("@", 1)[-1]:
+            raise ValueError("Enter a valid email address.")
+        return cleaned
+
+
+class EmailTestResponse(BaseModel):
+    message: str
+    smtp_host: str
+    from_email: str
 
 
 def require_admin_user(current_user: User) -> None:
@@ -42,6 +63,40 @@ def apply_agent_scope(query, current_user: User):
 
 def money_value(value: Decimal | None) -> str | None:
     return str(value) if value is not None else None
+
+
+@router.post("/email-test", response_model=EmailTestResponse)
+def send_email_test(
+    request: EmailTestRequest,
+    current_user: User = Depends(get_current_active_user),
+) -> EmailTestResponse:
+    require_admin_user(current_user)
+
+    if not smtp_is_configured():
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email is not configured yet. Check SMTP_HOST and SMTP_FROM_EMAIL in Render.",
+        )
+
+    try:
+        email_sent = send_test_email(to_email=request.to_email)
+    except Exception as exc:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Email test failed: {exc}",
+        ) from exc
+
+    if not email_sent:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Email could not be sent because SMTP settings are incomplete.",
+        )
+
+    return EmailTestResponse(
+        message=f"Test email sent to {request.to_email}.",
+        smtp_host=settings.smtp_host,
+        from_email=settings.smtp_from_email,
+    )
 
 
 def agent_summary(agent: AgentProfile) -> dict[str, Any]:

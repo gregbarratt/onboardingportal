@@ -1,5 +1,5 @@
-import { Building2, Plus } from "lucide-react";
-import { useMemo, useState } from "react";
+import { Building2, Mail, Plus, Send } from "lucide-react";
+import { useEffect, useMemo, useState } from "react";
 
 import { apiClient } from "../../api/client.js";
 import {
@@ -33,12 +33,22 @@ export default function AdminSettingsPage() {
   const [form, setForm] = useState(emptyOrganizationForm);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [emailTestAddress, setEmailTestAddress] = useState(user?.email || "");
+  const [testingEmail, setTestingEmail] = useState(false);
+  const [emailTestMessage, setEmailTestMessage] = useState("");
+  const [emailTestError, setEmailTestError] = useState("");
 
   const isSuperAdmin = user?.role?.name === "Super Admin";
   const currentOrganization = useMemo(() => {
     if (user?.organization) return user.organization;
     return organizations.data?.find((item) => item.id === user?.organization_id) || null;
   }, [organizations.data, user]);
+
+  useEffect(() => {
+    if (user?.email && !emailTestAddress) {
+      setEmailTestAddress(user.email);
+    }
+  }, [emailTestAddress, user]);
 
   async function handleCreateOrganization(event) {
     event.preventDefault();
@@ -66,6 +76,22 @@ export default function AdminSettingsPage() {
     }
   }
 
+  async function handleSendEmailTest(event) {
+    event.preventDefault();
+    setTestingEmail(true);
+    setEmailTestMessage("");
+    setEmailTestError("");
+
+    try {
+      const response = await apiClient.post("/admin/email-test", { to_email: emailTestAddress }, token);
+      setEmailTestMessage(response.message || "Test email sent.");
+    } catch (err) {
+      setEmailTestError(getFriendlyError(err, "Email test failed."));
+    } finally {
+      setTestingEmail(false);
+    }
+  }
+
   if (organizations.loading) {
     return (
       <AdminPageShell title="Settings" description="Manage portal rules and organisation access.">
@@ -79,6 +105,8 @@ export default function AdminSettingsPage() {
       <div className="space-y-6">
         <ErrorBanner message={organizations.error} />
         <ErrorBanner message={saveError} />
+        <ErrorBanner message={emailTestError} />
+        {emailTestMessage ? <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-700">{emailTestMessage}</div> : null}
 
         <div className="grid gap-6 xl:grid-cols-2">
           <Card title="Current Organisation" description="This controls which company records this user can work with.">
@@ -104,6 +132,23 @@ export default function AdminSettingsPage() {
             </dl>
           </Card>
         </div>
+
+        <Card title="Email Test" description="Send a test email from the same mailbox used for password resets.">
+          <form onSubmit={handleSendEmailTest} className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
+            <FormField label="Send test email to">
+              <TextInput
+                type="email"
+                value={emailTestAddress}
+                onChange={(event) => setEmailTestAddress(event.target.value)}
+                placeholder="name@example.com"
+                required
+              />
+            </FormField>
+            <PrimaryButton type="submit" icon={testingEmail ? Mail : Send} disabled={testingEmail}>
+              {testingEmail ? "Sending..." : "Send test email"}
+            </PrimaryButton>
+          </form>
+        </Card>
 
         {isSuperAdmin ? (
           <Card title="Create Organisation" description="Add another company if you later allow other brands or partners to use this portal.">

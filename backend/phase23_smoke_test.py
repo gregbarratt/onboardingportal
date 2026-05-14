@@ -58,6 +58,11 @@ def run_smoke_tests() -> None:
 
     assert_status("current admin user", client.get("/auth/me", headers=admin_headers), 200)
     assert_status("agent blocked from audit logs", client.get("/audit-logs", headers=agent_headers), 403)
+    assert_status(
+        "email test needs SMTP configuration",
+        client.post("/admin/email-test", headers=admin_headers, json={"to_email": "admin@example.com"}),
+        400,
+    )
     test_organizations(superadmin_headers, admin_headers)
 
     agents = assert_json("admin agent list", client.get("/agents", headers=admin_headers), 200)

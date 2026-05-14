@@ -1,3 +1,5 @@
+import logging
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
@@ -45,6 +47,7 @@ from app.services.tokens import create_access_token
 
 
 router = APIRouter(prefix="/auth", tags=["Authentication"])
+logger = logging.getLogger(__name__)
 
 
 def ensure_default_roles(db: Session) -> dict[str, Role]:
@@ -249,6 +252,7 @@ def request_password_reset(
     try:
         email_sent = send_password_reset_email(to_email=user.email, reset_url=reset_url)
     except Exception:
+        logger.exception("Password reset email could not be sent for user_id=%s", user.id)
         email_sent = False
 
     agent_profile = db.scalar(select(AgentProfile).where(AgentProfile.user_id == user.id))
