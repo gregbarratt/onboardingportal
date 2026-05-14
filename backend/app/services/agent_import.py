@@ -4,7 +4,7 @@ import base64
 import csv
 import io
 import secrets
-from datetime import date
+from datetime import date, datetime
 from decimal import Decimal, InvalidOperation
 from typing import Any
 
@@ -54,6 +54,82 @@ PROFILE_FIELDS = (
     "commission_sort_code",
     "commission_account_number",
 )
+
+
+AGENT_STATUS_ALIASES = {
+    "active": "Active Agent",
+    "active agent": "Active Agent",
+    "approved": "Approved to Trade",
+    "approved to trade": "Approved to Trade",
+    "awaiting approval": "Awaiting Final Approval",
+    "awaiting final approval": "Awaiting Final Approval",
+    "cancelled": "Archived",
+    "canceled": "Archived",
+    "closed": "Archived",
+    "compliance hold": "Compliance Hold",
+    "hold": "Compliance Hold",
+    "inactive": "Archived",
+    "live": "Active Agent",
+    "onboarding": "Onboarding In Progress",
+    "onboarding in progress": "Onboarding In Progress",
+    "overdue": "Payment Overdue",
+    "past due": "Payment Overdue",
+    "past_due": "Payment Overdue",
+    "payment active": "Payment Active",
+    "payment overdue": "Payment Overdue",
+    "payment pending": "Payment Pending",
+    "pending": "Payment Pending",
+    "registered": "Registered",
+    "suspended": "Suspended",
+    "terminated": "Terminated",
+    "training": "Training In Progress",
+    "training in progress": "Training In Progress",
+    "trading": "Approved to Trade",
+    "unpaid": "Payment Overdue",
+}
+
+MEMBERSHIP_STATUS_ALIASES = {
+    "active": "Active",
+    "cancelled": "Cancelled",
+    "canceled": "Cancelled",
+    "failed": "Failed Payment",
+    "failed payment": "Failed Payment",
+    "inactive": "Archived",
+    "incomplete": "Payment Pending",
+    "incomplete expired": "Failed Payment",
+    "incomplete_expired": "Failed Payment",
+    "invited": "Invited",
+    "live": "Active",
+    "overdue": "Overdue",
+    "past due": "Overdue",
+    "past_due": "Overdue",
+    "payment pending": "Payment Pending",
+    "pending": "Payment Pending",
+    "suspended": "Suspended",
+    "terminated": "Terminated",
+    "trialing": "Active",
+    "unpaid": "Overdue",
+}
+
+PAYMENT_STATUS_ALIASES = {
+    "active": "Paid",
+    "cancelled": "Cancelled",
+    "canceled": "Cancelled",
+    "failed": "Failed",
+    "incomplete": "Pending",
+    "incomplete expired": "Failed",
+    "incomplete_expired": "Failed",
+    "not started": "Not Started",
+    "not_started": "Not Started",
+    "overdue": "Overdue",
+    "paid": "Paid",
+    "past due": "Overdue",
+    "past_due": "Overdue",
+    "pending": "Pending",
+    "refunded": "Refunded",
+    "trialing": "Pending",
+    "unpaid": "Overdue",
+}
 
 
 class AgentImportRowError(ValueError):
@@ -265,7 +341,13 @@ def import_agent_row(
             personal_email=clean_email(row.get("personal_email")) or login_email,
             company_email=clean_email(row.get("company_email")),
             portal_access_enabled=bool(portal_access_enabled),
-            status=parse_choice(row.get("status"), AGENT_STATUSES, DEFAULT_AGENT_STATUS, "status"),
+            status=parse_choice(
+                row.get("status"),
+                AGENT_STATUSES,
+                DEFAULT_AGENT_STATUS,
+                "status",
+                aliases=AGENT_STATUS_ALIASES,
+            ),
         )
         db.add(agent_profile)
         db.flush()
@@ -371,7 +453,13 @@ def write_profile_fields(agent_profile: AgentProfile, row: dict[str, str], *, is
         "company_email": clean_email(row.get("company_email")),
         "phone": clean_text(row.get("phone")),
         "business_name": clean_text(row.get("business_name")),
-        "status": parse_choice(row.get("status"), AGENT_STATUSES, DEFAULT_AGENT_STATUS if is_new else None, "status"),
+        "status": parse_choice(
+            row.get("status"),
+            AGENT_STATUSES,
+            DEFAULT_AGENT_STATUS if is_new else None,
+            "status",
+            aliases=AGENT_STATUS_ALIASES,
+        ),
         "joining_date": parse_date(row.get("joining_date"), "joining_date"),
         "address": clean_text(row.get("address")),
         "postcode": clean_text(row.get("postcode")),
@@ -406,8 +494,15 @@ def upsert_membership(db: Session, agent_profile: AgentProfile, row: dict[str, s
             MEMBERSHIP_STATUSES,
             None,
             "membership_status",
+            aliases=MEMBERSHIP_STATUS_ALIASES,
         ),
-        "payment_status": parse_choice(row.get("payment_status"), PAYMENT_STATUSES, None, "payment_status"),
+        "payment_status": parse_choice(
+            row.get("payment_status"),
+            PAYMENT_STATUSES,
+            None,
+            "payment_status",
+            aliases=PAYMENT_STATUS_ALIASES,
+        ),
         "payment_method": clean_text(row.get("payment_method")),
         "stripe_customer_id": clean_text(row.get("stripe_customer_id")),
         "stripe_subscription_id": clean_text(row.get("stripe_subscription_id")),
@@ -464,24 +559,46 @@ def parse_bool(value: object) -> bool | None:
     raise AgentImportRowError(f"{text} is not a valid yes/no value.")
 
 
-def parse_choice(value: object, allowed: tuple[str, ...], default: str | None, field: str) -> str | None:
+def parse_choice(
+    value: object,
+    allowed: tuple[str, ...],
+    default: str | None,
+    field: str,
+    *,
+    aliases: dict[str, str] | None = None,
+) -> str | None:
     text = clean_text(value)
     if text is None:
         return default
-    if text not in allowed:
-        allowed_values = ", ".join(allowed)
-        raise AgentImportRowError(f"{field} must be one of: {allowed_values}.")
-    return text
+    allowed_by_key = {normalise_choice_key(choice): choice for choice in allowed}
+    key = normalise_choice_key(text)
+    if key in allowed_by_key:
+        return allowed_by_key[key]
+    if aliases:
+        aliases_by_key = {normalise_choice_key(alias): choice for alias, choice in aliases.items()}
+        if key in aliases_by_key:
+            return aliases_by_key[key]
+    allowed_values = ", ".join(allowed)
+    raise AgentImportRowError(f"{field} must be one of: {allowed_values}.")
+
+
+def normalise_choice_key(value: str) -> str:
+    return " ".join(value.replace("_", " ").replace("-", " ").strip().lower().split())
 
 
 def parse_date(value: object, field: str) -> date | None:
     text = clean_text(value)
     if text is None:
         return None
+    for date_format in ("%Y-%m-%d", "%d/%m/%Y", "%d-%m-%Y"):
+        try:
+            return datetime.strptime(text, date_format).date()
+        except ValueError:
+            pass
     try:
         return date.fromisoformat(text)
     except ValueError as exc:
-        raise AgentImportRowError(f"{field} must use YYYY-MM-DD format.") from exc
+        raise AgentImportRowError(f"{field} must use YYYY-MM-DD or DD/MM/YYYY format.") from exc
 
 
 def parse_decimal(value: object, field: str) -> Decimal | None:

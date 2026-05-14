@@ -80,7 +80,7 @@ export default function AdminAgentListPage() {
 
         <Card
           title="Import Agents"
-          description="Upload the completed CSV to create or update agent profiles, membership details, and Stripe IDs. If Stripe sync is switched on, the portal will also pull live invoices and subscription status for imported Stripe customers."
+          description="Upload the completed CSV to create or update agent profiles, membership details, and Stripe IDs. If no organisation is named in the CSV, agents are added to your organisation. If Stripe sync is switched on, the portal will also pull live invoices and subscription status for imported Stripe customers."
           actions={
             <a
               className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"

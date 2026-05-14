@@ -356,7 +356,7 @@ def test_agent_csv_import(headers: dict[str, str]) -> None:
     csv_text = "\n".join(
         [
             "agent_id,organization_slug,first_name,last_name,login_email,personal_email,company_email,temporary_password,portal_access_enabled,phone,business_name,status,joining_date,address,postcode,commission_bank_name,commission_account_name,commission_sort_code,commission_account_number,membership_type,membership_status,payment_status,payment_method,setup_fee_amount,monthly_fee_amount,last_payment_date,next_payment_date,failed_payment_count,access_level,stripe_customer_id,stripe_subscription_id,internal_notes",
-            "OTC-90001,,CSV,Import,csv.import@example.com,csv.personal@example.com,csv.import@onetravelclub.co.uk,,FALSE,07123 999999,CSV Travel,Payment Pending,2026-01-15,\"1 CSV Street, London\",SW1A 1AA,CSV Bank,CSV Import,11-22-33,87654321,Standard,Payment Pending,Pending,Stripe,99.00,49.00,,2026-02-15,0,Onboarding,cus_csv_import,sub_csv_import,Imported during smoke test",
+            "OTC-90001,,CSV,Import,csv.import@example.com,csv.personal@example.com,csv.import@onetravelclub.co.uk,,FALSE,07123 999999,CSV Travel,Live,15/01/2026,\"1 CSV Street, London\",SW1A 1AA,CSV Bank,CSV Import,11-22-33,87654321,Standard,active,past_due,Stripe,99.00,49.00,,15/02/2026,0,Onboarding,cus_csv_import,sub_csv_import,Imported during smoke test",
         ]
     )
     encoded_csv = base64.b64encode(csv_text.encode("utf-8")).decode("ascii")
@@ -376,6 +376,7 @@ def test_agent_csv_import(headers: dict[str, str]) -> None:
     agents = assert_json("agent list after CSV import", client.get("/agents", headers=headers), 200)
     imported_agent = find_agent(agents, "csv.import@example.com")
     assert imported_agent["agent_id"] == "OTC-90001", "Imported agent ID was not saved."
+    assert imported_agent["status"] == "Active Agent", "Imported status alias was not translated."
     assert imported_agent["organization_id"], "Imported agent organisation was not saved."
     assert imported_agent["portal_access_enabled"] is False, "Imported portal access flag was not saved."
     assert imported_agent["company_email"] == "csv.import@onetravelclub.co.uk", "Imported company email was not saved."
@@ -387,6 +388,8 @@ def test_agent_csv_import(headers: dict[str, str]) -> None:
     )
     assert membership["stripe_customer_id"] == "cus_csv_import", "Imported Stripe customer ID was not saved."
     assert membership["stripe_subscription_id"] == "sub_csv_import", "Imported Stripe subscription ID was not saved."
+    assert membership["membership_status"] == "Active", "Imported membership status alias was not translated."
+    assert membership["payment_status"] == "Overdue", "Imported payment status alias was not translated."
 
 
 def test_admin_dashboard_reports(headers: dict[str, str]) -> None:
