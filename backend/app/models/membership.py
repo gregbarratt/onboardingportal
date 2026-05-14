@@ -55,6 +55,9 @@ class Membership(Base):
     payment_method: Mapped[str | None] = mapped_column(String(100), nullable=True)
     stripe_customer_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
     stripe_subscription_id: Mapped[str | None] = mapped_column(String(255), nullable=True)
+    stripe_last_synced_at: Mapped[datetime | None] = mapped_column(DateTime(timezone=True), nullable=True)
+    stripe_sync_status: Mapped[str | None] = mapped_column(String(50), nullable=True)
+    stripe_sync_error: Mapped[str | None] = mapped_column(Text, nullable=True)
     last_payment_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     next_payment_date: Mapped[date | None] = mapped_column(Date, nullable=True)
     failed_payment_count: Mapped[int] = mapped_column(default=0, server_default="0", nullable=False)
@@ -75,4 +78,3 @@ class Membership(Base):
     )
 
     agent: Mapped[AgentProfile] = relationship(back_populates="membership")
-

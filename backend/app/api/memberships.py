@@ -37,6 +37,8 @@ from app.services.stripe import (
     create_stripe_customer,
     list_stripe_invoices,
     list_stripe_subscriptions,
+    mark_stripe_sync_failed,
+    mark_stripe_sync_success,
     retrieve_stripe_customer,
     search_stripe_customers_for_agent,
     sync_stripe_invoices_for_membership,
@@ -413,6 +415,7 @@ def sync_agent_stripe_invoices(
     if not membership.stripe_customer_id:
         return {"synced_count": 0, "invoices": []}
 
+    membership_id = membership.id
     try:
         invoices = sync_stripe_invoices_for_membership(
             db,
@@ -420,8 +423,13 @@ def sync_agent_stripe_invoices(
             membership=membership,
             current_user=current_user,
         )
+        mark_stripe_sync_success(membership)
     except StripeIntegrationError as exc:
         db.rollback()
+        failed_membership = db.get(Membership, membership_id)
+        if failed_membership is not None:
+            mark_stripe_sync_failed(failed_membership, exc)
+            db.commit()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     db.commit()
@@ -464,6 +472,7 @@ def sync_agent_stripe_subscription(
     if not membership.stripe_customer_id:
         return {"synced": False, "subscription": None}
 
+    membership_id = membership.id
     try:
         subscription = sync_stripe_subscription_for_membership(
             db,
@@ -471,8 +480,13 @@ def sync_agent_stripe_subscription(
             membership=membership,
             current_user=current_user,
         )
+        mark_stripe_sync_success(membership)
     except StripeIntegrationError as exc:
         db.rollback()
+        failed_membership = db.get(Membership, membership_id)
+        if failed_membership is not None:
+            mark_stripe_sync_failed(failed_membership, exc)
+            db.commit()
         raise HTTPException(status_code=status.HTTP_400_BAD_REQUEST, detail=str(exc)) from exc
 
     db.commit()

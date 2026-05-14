@@ -5,7 +5,7 @@ import { apiClient } from "../../api/client.js";
 import { Card, DataTable, ErrorBanner, LoadingState, SecondaryButton, StatCard, StatusBadge } from "../../components/ui.jsx";
 import { useAuth } from "../../context/AuthContext.jsx";
 import { getFriendlyError, useAgentResource } from "../../hooks/useAgentPortalData.js";
-import { formatDate, formatMoney } from "../../utils/formatters.js";
+import { formatDate, formatDateTime, formatMoney } from "../../utils/formatters.js";
 import AgentPageShell from "./AgentPageShell.jsx";
 
 export default function MembershipPaymentsPage() {
@@ -29,18 +29,13 @@ function MembershipContent({ profile }) {
   const payments = useAgentResource(profile, (id) => `/agents/${id}/payments`, {
     initialData: [],
   });
-  const stripeInvoices = useAgentResource(profile, (id) => `/agents/${id}/stripe/invoices`, {
-    enabled: Boolean(membership.data?.stripe_customer_id),
-    initialData: [],
-    fallbackError: "Stripe invoices could not be loaded.",
-  });
 
-  if (membership.loading || payments.loading || stripeInvoices.loading) {
+  if (membership.loading || payments.loading) {
     return <LoadingState message="Loading membership and payments..." />;
   }
 
   const paymentRows = payments.data || [];
-  const invoiceRows = stripeInvoices.data || [];
+  const invoiceRows = paymentRows.filter((row) => row.payment_type === "Stripe Invoice" || row.stripe_payment_id);
   const canManageBilling = Boolean(membership.data?.stripe_customer_id);
 
   async function openBillingPortal() {
@@ -61,7 +56,6 @@ function MembershipContent({ profile }) {
     <div className="space-y-6">
       {membership.error ? <ErrorBanner message={membership.error} /> : null}
       {payments.error ? <ErrorBanner message={payments.error} /> : null}
-      {stripeInvoices.error ? <ErrorBanner message={stripeInvoices.error} /> : null}
       {billingError ? <ErrorBanner message={billingError} /> : null}
 
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-4">
@@ -96,6 +90,8 @@ function MembershipContent({ profile }) {
             <Detail label="Payment method" value={membership.data.payment_method} />
             <Detail label="Recurring payment reference" value={membership.data.stripe_subscription_id} />
             <Detail label="Last payment" value={formatDate(membership.data.last_payment_date)} />
+            <Detail label="Stripe last checked" value={formatDateTime(membership.data.stripe_last_synced_at)} />
+            <Detail label="Stripe sync status" value={membership.data.stripe_sync_status} />
             <Detail label="Access level" value={membership.data.access_level} />
             <div>
               <dt className="text-slate-500">Status</dt>
@@ -140,7 +136,7 @@ function MembershipContent({ profile }) {
         />
       </Card>
 
-      <Card title="Stripe Invoices" description="These are the invoices linked from Stripe for your membership payments.">
+      <Card title="Stripe Invoices" description="These are saved invoice records from the latest Stripe sync.">
         {!membership.data?.stripe_customer_id ? (
           <p className="text-sm text-slate-600">Stripe invoices will appear here once admin links your Stripe customer record.</p>
         ) : (
@@ -148,30 +144,17 @@ function MembershipContent({ profile }) {
             rows={invoiceRows}
             emptyMessage="No Stripe invoices have been found for this customer yet."
             columns={[
-              { key: "number", label: "Invoice", render: (row) => row.number || row.stripe_invoice_id },
-              { key: "status", label: "Status", render: (row) => <StatusBadge status={row.status} /> },
-              { key: "amount_paid", label: "Paid", render: (row) => formatMoney(row.amount_paid, row.currency || "GBP") },
-              { key: "amount_due", label: "Due", render: (row) => formatMoney(row.amount_due, row.currency || "GBP") },
+              { key: "stripe_payment_id", label: "Invoice", render: (row) => row.stripe_payment_id || "Stripe invoice" },
+              { key: "payment_status", label: "Status", render: (row) => <StatusBadge status={row.payment_status} /> },
+              { key: "amount", label: "Amount", render: (row) => formatMoney(row.amount, row.currency || "GBP") },
               { key: "due_date", label: "Due date", render: (row) => formatDate(row.due_date) },
               {
-                key: "hosted_invoice_url",
+                key: "invoice_url",
                 label: "Invoice",
                 render: (row) =>
-                  row.hosted_invoice_url ? (
-                    <a className="font-semibold text-sky-700 hover:text-sky-900" href={row.hosted_invoice_url} target="_blank" rel="noreferrer">
+                  row.invoice_url ? (
+                    <a className="font-semibold text-sky-700 hover:text-sky-900" href={row.invoice_url} target="_blank" rel="noreferrer">
                       View invoice
-                    </a>
-                  ) : (
-                    "Not set"
-                  ),
-              },
-              {
-                key: "invoice_pdf",
-                label: "PDF",
-                render: (row) =>
-                  row.invoice_pdf ? (
-                    <a className="font-semibold text-sky-700 hover:text-sky-900" href={row.invoice_pdf} target="_blank" rel="noreferrer">
-                      Download PDF
                     </a>
                   ) : (
                     "Not set"

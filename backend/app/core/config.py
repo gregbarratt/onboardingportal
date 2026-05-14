@@ -25,6 +25,7 @@ class Settings(BaseSettings):
     stripe_webhook_secret: str = ""
     stripe_agent_setup_price_id: str = ""
     stripe_agent_monthly_price_id: str = ""
+    stripe_nightly_sync_limit: int = 500
     initial_admin_email: str = ""
     initial_admin_password: str = ""
 

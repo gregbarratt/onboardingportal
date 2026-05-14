@@ -326,6 +326,62 @@ def sync_stripe_invoices_for_membership(
     return invoices
 
 
+def mark_stripe_sync_success(membership: Membership) -> None:
+    membership.stripe_last_synced_at = datetime.now(timezone.utc)
+    membership.stripe_sync_status = "Synced"
+    membership.stripe_sync_error = None
+
+
+def mark_stripe_sync_failed(membership: Membership, error: object) -> None:
+    membership.stripe_last_synced_at = datetime.now(timezone.utc)
+    membership.stripe_sync_status = "Failed"
+    membership.stripe_sync_error = text_or_none(error)[:1000] if text_or_none(error) else "Stripe sync failed."
+
+
+def sync_stripe_cache_for_membership(
+    db: Session,
+    *,
+    agent_profile: AgentProfile,
+    membership: Membership,
+    current_user: User | None = None,
+) -> dict[str, int]:
+    if not membership.stripe_customer_id:
+        membership.stripe_sync_status = "Not linked"
+        membership.stripe_sync_error = None
+        return {
+            "stripe_synced": 0,
+            "stripe_profiles_synced": 0,
+            "stripe_profile_fields_synced": 0,
+            "stripe_invoices_synced": 0,
+            "stripe_subscriptions_synced": 0,
+        }
+
+    profile_fields = sync_stripe_customer_profile_for_agent(
+        agent_profile=agent_profile,
+        membership=membership,
+    )
+    subscription = sync_stripe_subscription_for_membership(
+        db,
+        agent_profile=agent_profile,
+        membership=membership,
+        current_user=current_user,
+    )
+    invoices = sync_stripe_invoices_for_membership(
+        db,
+        agent_profile=agent_profile,
+        membership=membership,
+        current_user=current_user,
+    )
+    mark_stripe_sync_success(membership)
+    return {
+        "stripe_synced": 1,
+        "stripe_profiles_synced": 1 if profile_fields else 0,
+        "stripe_profile_fields_synced": len(profile_fields),
+        "stripe_invoices_synced": len(invoices),
+        "stripe_subscriptions_synced": 1 if subscription is not None else 0,
+    }
+
+
 def sync_stripe_customer_profile_for_agent(
     *,
     agent_profile: AgentProfile,
@@ -734,6 +790,7 @@ def update_membership_from_invoice(
         previous_payment_status=previous_payment_status,
         source=source,
     )
+    mark_stripe_sync_success(membership)
 
 
 def update_membership_from_subscription(
@@ -787,6 +844,7 @@ def update_membership_from_subscription(
             user_id=agent_profile.user_id,
             agent_id=agent_profile.id,
         )
+    mark_stripe_sync_success(membership)
 
 
 def add_membership_audit_log(

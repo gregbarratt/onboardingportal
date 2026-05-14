@@ -59,6 +59,31 @@ services:
       - key: VITE_API_BASE_URL
         value: https://one-travel-club-onboarding-api.onrender.com
 
+  - type: cron
+    name: one-travel-club-onboarding-stripe-nightly-sync
+    runtime: python
+    plan: starter
+    region: frankfurt
+    buildCommand: pip install -r backend/requirements.txt
+    startCommand: cd backend && python -m app.jobs.sync_stripe_cache
+    schedule: "15 2 * * *"
+    envVars:
+      - key: DATABASE_URL
+        fromDatabase:
+          name: one-travel-club-onboarding-db
+          property: connectionString
+      - key: ENVIRONMENT
+        value: production
+      - key: FRONTEND_URL
+        value: https://one-travel-club-onboarding.onrender.com
+      - key: STRIPE_SECRET_KEY
+        fromService:
+          type: web
+          name: one-travel-club-onboarding-api
+          envVarKey: STRIPE_SECRET_KEY
+      - key: STRIPE_NIGHTLY_SYNC_LIMIT
+        value: "500"
+
 databases:
   - name: one-travel-club-onboarding-db
     databaseName: onboarding_hub

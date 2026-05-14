@@ -85,6 +85,9 @@ class MembershipRead(BaseModel):
     payment_method: str | None = None
     stripe_customer_id: str | None = None
     stripe_subscription_id: str | None = None
+    stripe_last_synced_at: datetime | None = None
+    stripe_sync_status: str | None = None
+    stripe_sync_error: str | None = None
     last_payment_date: date | None = None
     next_payment_date: date | None = None
     failed_payment_count: int

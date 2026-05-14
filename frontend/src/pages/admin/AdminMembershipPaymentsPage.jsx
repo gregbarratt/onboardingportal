@@ -19,7 +19,7 @@ import { apiClient } from "../../api/client.js";
 import { useAuth } from "../../context/AuthContext.jsx";
 import { buildAgentName, useAdminAgentRecords, useAgent, useAgents } from "../../hooks/useAdminData.js";
 import { getFriendlyError, useApiResource } from "../../hooks/useAgentPortalData.js";
-import { formatDate, formatMoney } from "../../utils/formatters.js";
+import { formatDate, formatDateTime, formatMoney } from "../../utils/formatters.js";
 import { membershipStatuses, paymentStatuses } from "./adminConstants.js";
 import AdminPageShell, { AdminLinkButton } from "./AdminPageShell.jsx";
 
@@ -88,6 +88,7 @@ function MembershipOverview() {
               { key: "payment_status", label: "Payment", render: (row) => <StatusBadge status={row.payment_status} /> },
               { key: "monthly_fee_amount", label: "Monthly", render: (row) => formatMoney(row.monthly_fee_amount) },
               { key: "next_payment_date", label: "Next payment", render: (row) => formatDate(row.next_payment_date) },
+              { key: "stripe_last_synced_at", label: "Stripe checked", render: (row) => formatDateTime(row.stripe_last_synced_at) },
             ]}
           />
         </Card>
@@ -421,6 +422,11 @@ function MembershipDetail({ agentId }) {
         <ErrorBanner message={agent.error || error} />
         {membership.error ? <ErrorBanner message={membership.error} /> : null}
         {message ? <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-700">{message}</div> : null}
+        {membership.data?.stripe_sync_error ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            Last Stripe sync issue: {membership.data.stripe_sync_error}
+          </div>
+        ) : null}
 
         <StripeCustomerSearchCard
           agent={agent.data}
@@ -482,6 +488,12 @@ function MembershipDetail({ agentId }) {
               </FormField>
               <FormField label="Stripe subscription ID">
                 <TextInput value={membershipForm.stripe_subscription_id} onChange={(event) => updateMembership("stripe_subscription_id", event.target.value)} />
+              </FormField>
+              <FormField label="Stripe last checked">
+                <TextInput disabled value={formatDateTime(membership.data?.stripe_last_synced_at)} />
+              </FormField>
+              <FormField label="Stripe sync status">
+                <TextInput disabled value={membership.data?.stripe_sync_status || "Not checked yet"} />
               </FormField>
               <FormField label="Last payment date">
                 <TextInput type="date" value={membershipForm.last_payment_date} onChange={(event) => updateMembership("last_payment_date", event.target.value)} />
