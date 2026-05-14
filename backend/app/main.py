@@ -3,6 +3,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.api.audit import router as audit_router
+from app.api.admin import router as admin_router
 from app.api.agents import router as agents_router
 from app.api.auth import router as auth_router
 from app.api.certificates import router as certificates_router
@@ -38,6 +39,7 @@ settings.upload_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/uploaded-files", StaticFiles(directory=settings.upload_dir), name="uploaded_files")
 
 app.include_router(auth_router)
+app.include_router(admin_router)
 app.include_router(agents_router)
 app.include_router(audit_router)
 app.include_router(memberships_router)

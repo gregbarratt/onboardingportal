@@ -10,7 +10,11 @@ async function parseResponse(response) {
       typeof data === "object" && data !== null && "detail" in data
         ? data.detail
         : "The request could not be completed.";
-    throw new Error(Array.isArray(message) ? message.map((item) => item.msg).join(" ") : message);
+    const error = new Error(Array.isArray(message) ? message.map((item) => item.msg).join(" ") : message);
+    error.status = response.status;
+    error.detail = message;
+    error.data = data;
+    throw error;
   }
 
   return data;

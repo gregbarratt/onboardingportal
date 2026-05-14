@@ -15,6 +15,13 @@ const resourcePathBuilders = {
   auditLogs: (agentId) => `/agents/${agentId}/audit-logs`,
 };
 
+const adminResourcePaths = {
+  membership: "/admin/memberships",
+  documents: "/admin/documents",
+  attendance: "/admin/attendance",
+  certificates: "/admin/certificates",
+};
+
 export function useAgents() {
   return useApiResource("/agents", {
     initialData: [],
@@ -41,8 +48,36 @@ export function useAdminAgentRecords(agents, resourceName) {
   useEffect(() => {
     let active = true;
     const buildPath = resourcePathBuilders[resourceName];
+    const adminPath = adminResourcePaths[resourceName];
 
     async function loadRecords() {
+      if (adminPath) {
+        if (!token) {
+          setRecords([]);
+          setLoading(false);
+          return;
+        }
+
+        setLoading(true);
+        setError("");
+
+        try {
+          const result = await apiClient.get(adminPath, token);
+          if (active) {
+            setRecords(Array.isArray(result) ? result : []);
+          }
+        } catch (err) {
+          if (active) {
+            setError(getFriendlyError(err, "We could not load admin records."));
+          }
+        } finally {
+          if (active) {
+            setLoading(false);
+          }
+        }
+        return;
+      }
+
       if (!token || !buildPath || !agentList.length) {
         setRecords([]);
         setLoading(false);

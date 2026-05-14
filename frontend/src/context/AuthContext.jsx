@@ -4,14 +4,26 @@ import { apiClient } from "../api/client.js";
 
 const AuthContext = createContext(null);
 const TOKEN_STORAGE_KEY = "travel_hub_access_token";
+const USER_STORAGE_KEY = "travel_hub_current_user";
+
+function readStoredUser() {
+  try {
+    const storedUser = localStorage.getItem(USER_STORAGE_KEY);
+    return storedUser ? JSON.parse(storedUser) : null;
+  } catch (_error) {
+    localStorage.removeItem(USER_STORAGE_KEY);
+    return null;
+  }
+}
 
 export function AuthProvider({ children }) {
   const [token, setToken] = useState(() => localStorage.getItem(TOKEN_STORAGE_KEY));
-  const [user, setUser] = useState(null);
+  const [user, setUser] = useState(() => readStoredUser());
   const [loading, setLoading] = useState(true);
 
   const clearSession = useCallback(() => {
     localStorage.removeItem(TOKEN_STORAGE_KEY);
+    localStorage.removeItem(USER_STORAGE_KEY);
     setToken(null);
     setUser(null);
   }, []);
@@ -25,10 +37,13 @@ export function AuthProvider({ children }) {
 
       try {
         const currentUser = await apiClient.get("/auth/me", activeToken);
+        localStorage.setItem(USER_STORAGE_KEY, JSON.stringify(currentUser));
         setUser(currentUser);
         return currentUser;
-      } catch (_error) {
-        clearSession();
+      } catch (error) {
+        if (error.status === 401 || error.status === 403) {
+          clearSession();
+        }
         return null;
       } finally {
         setLoading(false);
