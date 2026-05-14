@@ -16,6 +16,7 @@ from app.core.training import (
     FURTHER_TRAINING_TRACK,
 )
 from app.db.base import Base
+from app.db.create_default_live_sessions import ensure_default_live_sessions
 from app.db.session import SessionLocal, engine
 from app.models import (
     AgentOnboardingProgress,
@@ -62,6 +63,7 @@ def seed_demo_data() -> None:
         ensure_demo_onboarding(db, agents, users["admin"])
         ensure_demo_training_progress(db, agents, training_modules, users["training"])
         ensure_demo_policy_acceptances(db, agents, policies, users["compliance"])
+        ensure_default_live_sessions(db)
         sessions = ensure_demo_live_sessions(db)
         ensure_demo_attendance(db, agents, sessions, users["training"])
         ensure_demo_certificates(db, agents, training_modules)

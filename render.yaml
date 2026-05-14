@@ -5,7 +5,7 @@ services:
     plan: starter
     region: frankfurt
     buildCommand: pip install -r backend/requirements.txt
-    preDeployCommand: cd backend && alembic upgrade head && python -m app.db.create_initial_admin
+    preDeployCommand: cd backend && alembic upgrade head && python -m app.db.create_initial_admin && python -m app.db.create_default_live_sessions
     startCommand: cd backend && uvicorn app.main:app --host 0.0.0.0 --port $PORT
     healthCheckPath: /health
     disk:
