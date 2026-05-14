@@ -31,7 +31,7 @@ def get_current_user(
 
     user = db.scalar(
         select(User)
-        .options(selectinload(User.role))
+        .options(selectinload(User.role), selectinload(User.organization))
         .where(User.id == user_id)
     )
     if user is None:
@@ -63,4 +63,3 @@ def require_roles(*role_names: str) -> Callable[[User], User]:
         return current_user
 
     return role_checker
-

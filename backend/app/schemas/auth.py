@@ -88,11 +88,22 @@ class RoleRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class UserOrganizationRead(BaseModel):
+    id: int
+    name: str
+    slug: str
+    status: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class UserRead(BaseModel):
     id: int
     email: str
     is_active: bool
     role: RoleRead
+    organization_id: int | None = None
+    organization: UserOrganizationRead | None = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)

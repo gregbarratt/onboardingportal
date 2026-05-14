@@ -151,6 +151,7 @@ def update_agent_membership(
     current_user: User = Depends(get_current_active_user),
 ) -> Membership:
     agent_profile = get_agent_or_404(db, agent_profile_id)
+    check_agent_access(agent_profile, current_user)
 
     if not is_admin_user(current_user):
         raise HTTPException(
@@ -206,6 +207,7 @@ def create_or_link_stripe_customer(
         )
 
     agent_profile = get_agent_or_404(db, agent_profile_id)
+    check_agent_access(agent_profile, current_user)
     membership = get_or_create_membership_for_agent(db, agent_profile)
     if membership.stripe_customer_id:
         return membership
@@ -300,6 +302,7 @@ def search_agent_stripe_customers(
         )
 
     agent_profile = get_agent_or_404(db, agent_profile_id)
+    check_agent_access(agent_profile, current_user)
     try:
         return search_stripe_customers_for_agent(agent_profile)
     except StripeIntegrationError as exc:
@@ -320,6 +323,7 @@ def link_existing_stripe_customer(
         )
 
     agent_profile = get_agent_or_404(db, agent_profile_id)
+    check_agent_access(agent_profile, current_user)
     membership = get_or_create_membership_for_agent(db, agent_profile)
 
     existing_membership = db.scalar(
@@ -404,6 +408,7 @@ def sync_agent_stripe_invoices(
         )
 
     agent_profile = get_agent_or_404(db, agent_profile_id)
+    check_agent_access(agent_profile, current_user)
     membership = get_membership_or_404(db, agent_profile.id)
     if not membership.stripe_customer_id:
         return {"synced_count": 0, "invoices": []}
@@ -454,6 +459,7 @@ def sync_agent_stripe_subscription(
         )
 
     agent_profile = get_agent_or_404(db, agent_profile_id)
+    check_agent_access(agent_profile, current_user)
     membership = get_membership_or_404(db, agent_profile.id)
     if not membership.stripe_customer_id:
         return {"synced": False, "subscription": None}
@@ -481,6 +487,7 @@ def create_agent_payment(
     current_user: User = Depends(get_current_active_user),
 ) -> Payment:
     agent_profile: AgentProfile = get_agent_or_404(db, agent_profile_id)
+    check_agent_access(agent_profile, current_user)
 
     if not is_admin_user(current_user):
         raise HTTPException(

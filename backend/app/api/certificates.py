@@ -70,6 +70,7 @@ def create_agent_certificate(
 ) -> Certificate:
     require_admin_user(current_user)
     agent_profile = get_agent_or_404(db, agent_profile_id)
+    check_agent_access(agent_profile, current_user)
     get_training_module_or_404(db, request.training_module_id)
 
     certificate = Certificate(
@@ -96,6 +97,8 @@ def expire_certificate(
 ) -> Certificate:
     require_admin_user(current_user)
     certificate = get_certificate_or_404(db, certificate_id)
+    agent_profile = get_agent_or_404(db, certificate.agent_id)
+    check_agent_access(agent_profile, current_user)
     certificate.status = "Expired"
     if certificate.expiry_date is None:
         certificate.expiry_date = date.today()
@@ -112,6 +115,8 @@ def revoke_certificate(
 ) -> Certificate:
     require_admin_user(current_user)
     certificate = get_certificate_or_404(db, certificate_id)
+    agent_profile = get_agent_or_404(db, certificate.agent_id)
+    check_agent_access(agent_profile, current_user)
     certificate.status = "Revoked"
     db.commit()
     db.refresh(certificate)

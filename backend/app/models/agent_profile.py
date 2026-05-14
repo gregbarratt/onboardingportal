@@ -18,6 +18,7 @@ if TYPE_CHECKING:
     from app.models.notification import Notification
     from app.models.onboarding import AgentOnboardingProgress
     from app.models.membership import Membership
+    from app.models.organization import Organization
     from app.models.payment import Payment
     from app.models.training import AgentTrainingProgress, TrainingAssignment
     from app.models.user import User
@@ -31,6 +32,11 @@ class AgentProfile(Base):
         ForeignKey("users.id"),
         unique=True,
         nullable=False,
+        index=True,
+    )
+    organization_id: Mapped[int | None] = mapped_column(
+        ForeignKey("organizations.id"),
+        nullable=True,
         index=True,
     )
     agent_id: Mapped[str] = mapped_column(String(50), unique=True, index=True, nullable=False)
@@ -69,6 +75,7 @@ class AgentProfile(Base):
     )
 
     user: Mapped[User] = relationship(back_populates="agent_profile")
+    organization: Mapped[Organization | None] = relationship(back_populates="agent_profiles")
     membership: Mapped[Membership | None] = relationship(
         back_populates="agent",
         cascade="all, delete-orphan",

@@ -37,7 +37,7 @@ const navItems = [
   { label: "Compliance", to: "/compliance", icon: ShieldCheck },
 ];
 
-const adminRoles = ["Super Admin", "Admin", "Training Manager", "Compliance Manager"];
+const adminRoles = ["Super Admin", "Organisation Admin", "Admin", "Training Manager", "Compliance Manager"];
 
 const adminNavItems = [
   { label: "Admin Dashboard", to: "/admin", icon: UsersRound, end: true },

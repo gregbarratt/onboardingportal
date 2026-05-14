@@ -197,6 +197,8 @@ def verify_document(
 ) -> Document:
     require_admin_user(current_user)
     document = get_document_or_404(db, document_id)
+    agent_profile = get_agent_or_404(db, document.agent_id)
+    check_agent_access(agent_profile, current_user)
     document.verified = True
     document.verified_by = current_user.id
     document.verified_date = date.today()
@@ -218,6 +220,8 @@ def reject_document(
 ) -> Document:
     require_admin_user(current_user)
     document = get_document_or_404(db, document_id)
+    agent_profile = get_agent_or_404(db, document.agent_id)
+    check_agent_access(agent_profile, current_user)
     document.verified = False
     document.verified_by = current_user.id
     document.verified_date = date.today()

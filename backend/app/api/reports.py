@@ -1,7 +1,7 @@
 from datetime import date, timedelta
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import func, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session, selectinload
 
 from app.api.agents import is_admin_user
@@ -26,6 +26,7 @@ from app.schemas.reports import (
     TrainingCompletionReportRow,
 )
 from app.services.final_approval import build_final_approval_status
+from app.services.organizations import can_manage_all_organizations
 
 
 router = APIRouter(prefix="/admin/reports", tags=["Admin Reports"])
@@ -47,28 +48,36 @@ def get_admin_reports(
 ) -> AdminReportsRead:
     require_admin_user(current_user)
 
-    agents = list(db.scalars(select(AgentProfile).order_by(AgentProfile.last_name, AgentProfile.first_name)))
+    agents = get_visible_agents(db, current_user)
+    agent_ids = [agent.id for agent in agents]
     return AdminReportsRead(
-        agents_by_status=build_agents_by_status_report(db),
+        agents_by_status=build_agents_by_status_report(agents),
         payment_status_report=build_payment_status_report(db, agents),
         training_completion_report=build_training_completion_report(db, agents),
-        overdue_training_report=build_overdue_training_report(db),
-        attendance_report=build_attendance_report(db),
-        compliance_expiry_report=build_compliance_expiry_report(db, expiry_days),
-        documents_awaiting_review=build_documents_awaiting_review_report(db),
+        overdue_training_report=build_overdue_training_report(db, agent_ids),
+        attendance_report=build_attendance_report(db, agent_ids),
+        compliance_expiry_report=build_compliance_expiry_report(db, expiry_days, agent_ids),
+        documents_awaiting_review=build_documents_awaiting_review_report(db, agent_ids),
         final_approval_queue=build_final_approval_queue_report(db, agents),
     )
 
 
-def build_agents_by_status_report(db: Session) -> list[AgentsByStatusReportRow]:
-    rows = db.execute(
-        select(AgentProfile.status, func.count(AgentProfile.id))
-        .group_by(AgentProfile.status)
-        .order_by(AgentProfile.status)
-    ).all()
+def get_visible_agents(db: Session, current_user: User) -> list[AgentProfile]:
+    query = select(AgentProfile).order_by(AgentProfile.last_name, AgentProfile.first_name)
+    if not can_manage_all_organizations(current_user):
+        if current_user.organization_id is None:
+            return []
+        query = query.where(AgentProfile.organization_id == current_user.organization_id)
+    return list(db.scalars(query))
+
+
+def build_agents_by_status_report(agents: list[AgentProfile]) -> list[AgentsByStatusReportRow]:
+    totals: dict[str, int] = {}
+    for agent in agents:
+        totals[agent.status] = totals.get(agent.status, 0) + 1
     return [
         AgentsByStatusReportRow(id=status_text.lower().replace(" ", "-"), status=status_text, total=total)
-        for status_text, total in rows
+        for status_text, total in sorted(totals.items())
     ]
 
 
@@ -150,8 +159,10 @@ def build_training_completion_report(db: Session, agents: list[AgentProfile]) ->
     return rows
 
 
-def build_overdue_training_report(db: Session) -> list[OverdueTrainingReportRow]:
+def build_overdue_training_report(db: Session, agent_ids: list[int]) -> list[OverdueTrainingReportRow]:
     today = date.today()
+    if not agent_ids:
+        return []
     assignments = list(
         db.scalars(
             select(TrainingAssignment)
@@ -161,6 +172,7 @@ def build_overdue_training_report(db: Session) -> list[OverdueTrainingReportRow]
                 selectinload(TrainingAssignment.progress),
             )
             .where(TrainingAssignment.due_date.is_not(None), TrainingAssignment.due_date < today)
+            .where(TrainingAssignment.agent_id.in_(agent_ids))
             .order_by(TrainingAssignment.due_date)
         )
     )
@@ -183,7 +195,9 @@ def build_overdue_training_report(db: Session) -> list[OverdueTrainingReportRow]
     return rows
 
 
-def build_attendance_report(db: Session) -> list[AttendanceReportRow]:
+def build_attendance_report(db: Session, agent_ids: list[int]) -> list[AttendanceReportRow]:
+    if not agent_ids:
+        return []
     attendance_rows = list(
         db.scalars(
             select(AttendanceLog)
@@ -191,6 +205,7 @@ def build_attendance_report(db: Session) -> list[AttendanceReportRow]:
                 selectinload(AttendanceLog.agent),
                 selectinload(AttendanceLog.session),
             )
+            .where(AttendanceLog.agent_id.in_(agent_ids))
             .join(AttendanceLog.session)
             .order_by(AttendanceLog.id.desc())
             .limit(100)
@@ -211,10 +226,12 @@ def build_attendance_report(db: Session) -> list[AttendanceReportRow]:
     ]
 
 
-def build_compliance_expiry_report(db: Session, expiry_days: int) -> list[ComplianceExpiryReportRow]:
+def build_compliance_expiry_report(db: Session, expiry_days: int, agent_ids: list[int]) -> list[ComplianceExpiryReportRow]:
     today = date.today()
     cutoff = today + timedelta(days=expiry_days)
     rows: list[ComplianceExpiryReportRow] = []
+    if not agent_ids:
+        return rows
 
     certificates = list(
         db.scalars(
@@ -224,6 +241,7 @@ def build_compliance_expiry_report(db: Session, expiry_days: int) -> list[Compli
                 selectinload(Certificate.training_module),
             )
             .where(Certificate.expiry_date.is_not(None), Certificate.expiry_date <= cutoff)
+            .where(Certificate.agent_id.in_(agent_ids))
             .order_by(Certificate.expiry_date)
         )
     )
@@ -246,6 +264,7 @@ def build_compliance_expiry_report(db: Session, expiry_days: int) -> list[Compli
             select(Document)
             .options(selectinload(Document.agent))
             .where(Document.expiry_date.is_not(None), Document.expiry_date <= cutoff)
+            .where(Document.agent_id.in_(agent_ids))
             .order_by(Document.expiry_date)
         )
     )
@@ -266,12 +285,15 @@ def build_compliance_expiry_report(db: Session, expiry_days: int) -> list[Compli
     return rows
 
 
-def build_documents_awaiting_review_report(db: Session) -> list[DocumentsAwaitingReviewReportRow]:
+def build_documents_awaiting_review_report(db: Session, agent_ids: list[int]) -> list[DocumentsAwaitingReviewReportRow]:
+    if not agent_ids:
+        return []
     documents = list(
         db.scalars(
             select(Document)
             .options(selectinload(Document.agent))
             .where(Document.status.in_(("Uploaded", "Awaiting Review")))
+            .where(Document.agent_id.in_(agent_ids))
             .order_by(Document.uploaded_date, Document.id)
         )
     )

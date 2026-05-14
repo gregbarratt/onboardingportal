@@ -20,6 +20,11 @@ from app.schemas.agent import (
 from app.services.agent_ids import generate_next_agent_id
 from app.services.agent_import import import_agents_from_csv
 from app.services.final_approval import approve_agent_to_trade, build_final_approval_status
+from app.services.organizations import (
+    can_manage_all_organizations,
+    organization_id_for_new_record,
+    user_can_access_organization,
+)
 
 
 router = APIRouter(prefix="/agents", tags=["Agents"])
@@ -40,8 +45,13 @@ def get_agent_or_404(db: Session, agent_profile_id: int) -> AgentProfile:
 
 
 def check_agent_access(agent_profile: AgentProfile, current_user: User) -> None:
-    if is_admin_user(current_user):
+    if is_admin_user(current_user) and user_can_access_organization(current_user, agent_profile.organization_id):
         return
+    if is_admin_user(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only access agents in your organisation.",
+        )
     if agent_profile.user_id != current_user.id:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
@@ -74,6 +84,12 @@ def create_agent_profile(
             detail="Only admins can set an agent status.",
         )
 
+    if not can_manage_all_organizations(current_user) and request.organization_id is not None:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only Super Admin can choose another organisation.",
+        )
+
     target_user = db.get(User, target_user_id)
     if target_user is None:
         raise HTTPException(
@@ -87,8 +103,17 @@ def create_agent_profile(
             detail="This user already has an agent profile.",
         )
 
+    organization_id = organization_id_for_new_record(db, current_user, request.organization_id)
+    if target_user.organization_id is not None and not user_can_access_organization(current_user, target_user.organization_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only create profiles for users in your organisation.",
+        )
+    target_user.organization_id = organization_id
+
     agent_profile = AgentProfile(
         user_id=target_user_id,
+        organization_id=organization_id,
         agent_id=request.agent_id or generate_next_agent_id(db),
         first_name=request.first_name,
         last_name=request.last_name,
@@ -128,7 +153,12 @@ def list_agent_profiles(
     current_user: User = Depends(get_current_active_user),
 ) -> list[AgentProfile]:
     if is_admin_user(current_user):
-        return list(db.scalars(select(AgentProfile).order_by(AgentProfile.id)))
+        query = select(AgentProfile).order_by(AgentProfile.id)
+        if not can_manage_all_organizations(current_user):
+            if current_user.organization_id is None:
+                return []
+            query = query.where(AgentProfile.organization_id == current_user.organization_id)
+        return list(db.scalars(query))
 
     own_profile = get_existing_profile_for_user(db, current_user.id)
     return [own_profile] if own_profile is not None else []
@@ -184,6 +214,7 @@ def approve_agent_final_trade_status(
         )
 
     agent_profile = get_agent_or_404(db, agent_profile_id)
+    check_agent_access(agent_profile, current_user)
     approval_status = build_final_approval_status(db, agent_profile)
     if approval_status["approved_to_trade"]:
         return approval_status
@@ -229,6 +260,15 @@ def update_agent_profile(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can update portal access.",
         )
+
+    if "organization_id" in update_data:
+        if not can_manage_all_organizations(current_user):
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="Only Super Admin can move an agent to another organisation.",
+            )
+        if agent_profile.user is not None:
+            agent_profile.user.organization_id = update_data["organization_id"]
 
     for field, value in update_data.items():
         setattr(agent_profile, field, value)

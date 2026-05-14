@@ -178,6 +178,7 @@ def assign_live_session(
     require_admin_user(current_user)
     live_session = get_live_session_or_404(db, session_id)
     agent_profile = get_agent_or_404(db, request.agent_id)
+    check_agent_access(agent_profile, current_user)
     attendance_log = get_attendance_log(db, live_session.id, agent_profile.id)
 
     if attendance_log is None:
@@ -218,6 +219,7 @@ def mark_live_session_attendance(
     require_admin_user(current_user)
     live_session = get_live_session_or_404(db, session_id)
     agent_profile = get_agent_or_404(db, request.agent_id)
+    check_agent_access(agent_profile, current_user)
     attendance_log = upsert_attendance_log(db, live_session, agent_profile, current_user, request)
     db.commit()
     db.refresh(attendance_log)
@@ -237,6 +239,7 @@ def mark_live_session_attendance_bulk(
 
     for item in request.items:
         agent_profile = get_agent_or_404(db, item.agent_id)
+        check_agent_access(agent_profile, current_user)
         attendance_logs.append(upsert_attendance_log(db, live_session, agent_profile, current_user, item))
 
     db.commit()

@@ -2,14 +2,16 @@ from fastapi import APIRouter, Depends, HTTPException, Request, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.agents import get_agent_or_404, is_admin_user
+from app.api.agents import check_agent_access, get_agent_or_404, is_admin_user
 from app.api.deps import get_current_active_user
 from app.core.audit import ADMIN_NOTE_ADDED_ACTION
 from app.db.session import get_db
 from app.models.audit import AdminNote, AuditLog
+from app.models.agent_profile import AgentProfile
 from app.models.user import User
 from app.schemas.audit import AdminNoteCreate, AdminNoteRead, AuditLogRead
 from app.services.audit import create_audit_log
+from app.services.organizations import can_manage_all_organizations
 
 
 router = APIRouter(tags=["Audit Logs and Admin Notes"])
@@ -35,11 +37,15 @@ def list_audit_logs(
     current_user: User = Depends(get_current_active_user),
 ) -> list[AuditLog]:
     require_admin_user(current_user)
-    return list(
-        db.scalars(
-            select(AuditLog).order_by(AuditLog.created_date.desc(), AuditLog.id.desc())
+    query = select(AuditLog).order_by(AuditLog.created_date.desc(), AuditLog.id.desc())
+    if not can_manage_all_organizations(current_user):
+        if current_user.organization_id is None:
+            return []
+        query = (
+            query.join(AgentProfile, AuditLog.agent_id == AgentProfile.id, isouter=True)
+            .where(AgentProfile.organization_id == current_user.organization_id)
         )
-    )
+    return list(db.scalars(query))
 
 
 @router.get("/agents/{agent_profile_id}/audit-logs", response_model=list[AuditLogRead])
@@ -50,6 +56,7 @@ def list_agent_audit_logs(
 ) -> list[AuditLog]:
     require_admin_user(current_user)
     agent_profile = get_agent_or_404(db, agent_profile_id)
+    check_agent_access(agent_profile, current_user)
     return list(
         db.scalars(
             select(AuditLog)
@@ -69,6 +76,7 @@ def create_agent_admin_note(
 ) -> AdminNote:
     require_admin_user(current_user)
     agent_profile = get_agent_or_404(db, agent_profile_id)
+    check_agent_access(agent_profile, current_user)
     admin_note = AdminNote(
         agent_id=agent_profile.id,
         note=request_data.note,
@@ -98,6 +106,7 @@ def list_agent_admin_notes(
 ) -> list[AdminNote]:
     require_admin_user(current_user)
     agent_profile = get_agent_or_404(db, agent_profile_id)
+    check_agent_access(agent_profile, current_user)
     return list(
         db.scalars(
             select(AdminNote)

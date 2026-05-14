@@ -37,7 +37,7 @@ import NotFoundPage from "./pages/NotFoundPage.jsx";
 import RegisterPage from "./pages/RegisterPage.jsx";
 import RegisterResultPage from "./pages/RegisterResultPage.jsx";
 
-const adminRoles = ["Super Admin", "Admin", "Training Manager", "Compliance Manager"];
+const adminRoles = ["Super Admin", "Organisation Admin", "Admin", "Training Manager", "Compliance Manager"];
 
 export default function App() {
   const adminPage = (element) => <RoleGuard allowedRoles={adminRoles}>{element}</RoleGuard>;

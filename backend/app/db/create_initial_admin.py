@@ -7,6 +7,7 @@ from app.db.session import SessionLocal
 from app.db.seed_reference_data import seed_reference_data
 from app.models.role import Role
 from app.models.user import User
+from app.services.organizations import ensure_default_organization
 from app.services.passwords import hash_password
 
 
@@ -41,10 +42,13 @@ def create_initial_admin() -> None:
 
     with SessionLocal() as db:
         roles = ensure_roles(db)
+        organization = ensure_default_organization(db)
         seed_reference_data(db)
         existing_user = db.scalar(select(User).where(User.email == email))
 
         if existing_user is not None:
+            if existing_user.organization_id is None:
+                existing_user.organization_id = organization.id
             db.commit()
             print(f"Initial admin already exists: {email}")
             return
@@ -53,6 +57,7 @@ def create_initial_admin() -> None:
             email=email,
             hashed_password=hash_password(password),
             role=roles["Super Admin"],
+            organization_id=organization.id,
             is_active=True,
         )
         db.add(admin)

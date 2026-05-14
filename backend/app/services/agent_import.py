@@ -21,11 +21,13 @@ from app.core.payment_statuses import (
 )
 from app.models.agent_profile import AgentProfile
 from app.models.membership import Membership
+from app.models.organization import Organization
 from app.models.role import Role
 from app.models.user import User
 from app.schemas.agent import AgentCsvImportRequest
 from app.services.agent_ids import generate_next_agent_id
 from app.services.audit import create_audit_log
+from app.services.organizations import can_manage_all_organizations, ensure_default_organization
 from app.services.passwords import hash_password
 from app.services.stripe import (
     StripeIntegrationError,
@@ -205,6 +207,8 @@ def import_agent_row(
     agent_id = clean_text(row.get("agent_id"))
     temporary_password = clean_text(row.get("temporary_password"))
     portal_access_enabled = parse_bool(row.get("portal_access_enabled"))
+    organization_id = resolve_import_organization_id(db, row=row, current_user=current_user)
+    organization_requested = clean_text(row.get("organization_id")) is not None or clean_text(row.get("organization_slug")) is not None
 
     if login_email is None:
         raise AgentImportRowError("login_email is required.")
@@ -218,19 +222,29 @@ def import_agent_row(
     if is_new_agent and user is None:
         if portal_access_enabled is True and not temporary_password:
             raise AgentImportRowError("temporary_password is required when portal_access_enabled is TRUE for a new user.")
-        user = create_agent_user(db, login_email, temporary_password)
+        user = create_agent_user(db, login_email, temporary_password, organization_id=organization_id)
     elif user is not None and user.role.name != "Agent":
         raise AgentImportRowError("This login email already belongs to a staff user.")
 
     if user is None:
         raise AgentImportRowError("A user account could not be found or created.")
 
+    if agent_profile is not None and agent_profile.organization_id not in (None, organization_id):
+        if not can_manage_all_organizations(current_user):
+            raise AgentImportRowError("This agent belongs to another organisation.")
+        if organization_requested:
+            agent_profile.organization_id = organization_id
+        else:
+            organization_id = agent_profile.organization_id
+
     if temporary_password:
         user.hashed_password = hash_password(temporary_password)
+    user.organization_id = organization_id
 
     if agent_profile is None:
         agent_profile = AgentProfile(
             user_id=user.id,
+            organization_id=organization_id,
             agent_id=agent_id or generate_next_agent_id(db),
             first_name=first_name,
             last_name=last_name,
@@ -261,6 +275,7 @@ def import_agent_row(
         raise AgentImportRowError("The agent ID and login email belong to different existing records.")
 
     write_profile_fields(agent_profile, row, is_new=False)
+    agent_profile.organization_id = organization_id
     agent_profile.first_name = first_name
     agent_profile.last_name = last_name
     agent_profile.email = login_email
@@ -287,13 +302,14 @@ def find_user_by_email(db: Session, email: str) -> User | None:
     )
 
 
-def create_agent_user(db: Session, email: str, temporary_password: str | None) -> User:
+def create_agent_user(db: Session, email: str, temporary_password: str | None, *, organization_id: int) -> User:
     role = get_agent_role(db)
     password = temporary_password or secrets.token_urlsafe(24)
     user = User(
         email=email,
         hashed_password=hash_password(password),
         role=role,
+        organization_id=organization_id,
         is_active=True,
     )
     db.add(user)
@@ -308,6 +324,29 @@ def get_agent_role(db: Session) -> Role:
         db.add(role)
         db.flush()
     return role
+
+
+def resolve_import_organization_id(db: Session, *, row: dict[str, str], current_user: User) -> int:
+    requested_id = parse_int(row.get("organization_id"), "organization_id")
+    requested_slug = clean_text(row.get("organization_slug"))
+
+    if not can_manage_all_organizations(current_user):
+        if requested_id is not None or requested_slug is not None:
+            raise AgentImportRowError("Only Super Admin can import agents into another organisation.")
+        if current_user.organization_id is not None:
+            return current_user.organization_id
+        return ensure_default_organization(db).id
+
+    if requested_id is not None:
+        organization = db.get(Organization, requested_id)
+    elif requested_slug is not None:
+        organization = db.scalar(select(Organization).where(Organization.slug == requested_slug))
+    else:
+        organization = ensure_default_organization(db)
+
+    if organization is None:
+        raise AgentImportRowError("The organisation in this row was not found.")
+    return organization.id
 
 
 def write_profile_fields(agent_profile: AgentProfile, row: dict[str, str], *, is_new: bool) -> None:

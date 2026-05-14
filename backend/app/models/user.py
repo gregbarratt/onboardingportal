@@ -12,6 +12,7 @@ from app.models.role import Role
 if TYPE_CHECKING:
     from app.models.agent_profile import AgentProfile
     from app.models.notification import Notification
+    from app.models.organization import Organization
 
 
 class User(Base):
@@ -27,6 +28,11 @@ class User(Base):
         nullable=False,
     )
     role_id: Mapped[int] = mapped_column(ForeignKey("roles.id"), nullable=False, index=True)
+    organization_id: Mapped[int | None] = mapped_column(
+        ForeignKey("organizations.id"),
+        nullable=True,
+        index=True,
+    )
     created_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True),
         server_default=func.now(),
@@ -40,6 +46,7 @@ class User(Base):
     )
 
     role: Mapped[Role] = relationship(back_populates="users")
+    organization: Mapped[Organization | None] = relationship(back_populates="users")
     agent_profile: Mapped[AgentProfile | None] = relationship(
         back_populates="user",
         cascade="all, delete-orphan",

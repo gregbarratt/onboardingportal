@@ -4,7 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.api.agents import get_agent_or_404, is_admin_user
+from app.api.agents import check_agent_access, get_agent_or_404, is_admin_user
 from app.api.deps import get_current_active_user
 from app.db.session import get_db
 from app.models.notification import Notification
@@ -70,7 +70,8 @@ def create_notification(
         )
 
     if request.agent_id is not None:
-        get_agent_or_404(db, request.agent_id)
+        agent_profile = get_agent_or_404(db, request.agent_id)
+        check_agent_access(agent_profile, current_user)
 
     notification = Notification(
         recipient_user_id=recipient_user.id,

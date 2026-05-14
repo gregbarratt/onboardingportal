@@ -37,6 +37,7 @@ from app.models import (
     TrainingModule,
     User,
 )
+from app.services.organizations import ensure_default_organization
 from app.services.passwords import hash_password
 
 
@@ -49,12 +50,13 @@ def seed_demo_data() -> None:
 
     with SessionLocal() as db:
         roles = ensure_roles(db)
-        users = ensure_demo_users(db, roles)
+        organization = ensure_default_organization(db)
+        users = ensure_demo_users(db, roles, organization_id=organization.id)
         ensure_default_onboarding_steps(db)
         training_modules = ensure_default_training(db)
         policies = ensure_default_compliance_policies(db)
 
-        agents = ensure_demo_agents(db, users)
+        agents = ensure_demo_agents(db, users, organization_id=organization.id)
         ensure_demo_memberships_and_payments(db, agents)
         ensure_demo_documents(db, agents, users["admin"])
         ensure_demo_onboarding(db, agents, users["admin"])
@@ -105,7 +107,7 @@ def ensure_roles(db: Session) -> dict[str, Role]:
     return roles
 
 
-def ensure_demo_users(db: Session, roles: dict[str, Role]) -> dict[str, User]:
+def ensure_demo_users(db: Session, roles: dict[str, Role], *, organization_id: int) -> dict[str, User]:
     user_specs = {
         "superadmin": ("superadmin@example.com", "Super Admin"),
         "admin": ("admin@example.com", "Admin"),
@@ -126,6 +128,7 @@ def ensure_demo_users(db: Session, roles: dict[str, Role]) -> dict[str, User]:
                 email=email,
                 hashed_password=hash_password(DEMO_PASSWORD),
                 role_id=roles[role_name].id,
+                organization_id=organization_id,
                 is_active=True,
             )
             db.add(user)
@@ -133,6 +136,7 @@ def ensure_demo_users(db: Session, roles: dict[str, Role]) -> dict[str, User]:
         else:
             user.hashed_password = hash_password(DEMO_PASSWORD)
             user.role_id = roles[role_name].id
+            user.organization_id = organization_id
             user.is_active = True
         users[key] = user
     return users
@@ -236,7 +240,7 @@ def ensure_default_compliance_policies(db: Session) -> dict[str, CompliancePolic
     return policies
 
 
-def ensure_demo_agents(db: Session, users: dict[str, User]) -> dict[str, AgentProfile]:
+def ensure_demo_agents(db: Session, users: dict[str, User], *, organization_id: int) -> dict[str, AgentProfile]:
     agent_specs = {
         "sarah": {
             "user": users["sarah"],
@@ -307,6 +311,7 @@ def ensure_demo_agents(db: Session, users: dict[str, User]) -> dict[str, AgentPr
         if agent is None:
             agent = AgentProfile(
                 user_id=spec["user"].id,
+                organization_id=organization_id,
                 agent_id=spec["agent_id"],
                 first_name=spec["first_name"],
                 last_name=spec["last_name"],
@@ -316,6 +321,7 @@ def ensure_demo_agents(db: Session, users: dict[str, User]) -> dict[str, AgentPr
             db.flush()
 
         agent.agent_id = spec["agent_id"]
+        agent.organization_id = organization_id
         agent.first_name = spec["first_name"]
         agent.last_name = spec["last_name"]
         agent.email = spec["email"]

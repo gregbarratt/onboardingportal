@@ -23,6 +23,7 @@ from app.schemas.compliance import (
     PolicyAcceptanceRead,
     PolicyAcceptanceRequest,
 )
+from app.services.organizations import can_manage_all_organizations
 
 
 router = APIRouter(tags=["Compliance Centre"])
@@ -348,7 +349,15 @@ def get_admin_compliance_dashboard(
     current_user: User = Depends(get_current_active_user),
 ) -> AdminComplianceDashboardRead:
     require_admin_user(current_user)
-    agents = list(db.scalars(select(AgentProfile).order_by(AgentProfile.id)))
+    agent_query = select(AgentProfile).order_by(AgentProfile.id)
+    if not can_manage_all_organizations(current_user):
+        if current_user.organization_id is None:
+            agents = []
+        else:
+            agents = list(db.scalars(agent_query.where(AgentProfile.organization_id == current_user.organization_id)))
+    else:
+        agents = list(db.scalars(agent_query))
+    agent_ids = [agent.id for agent in agents]
     missing_document_agents = []
     expired_training_agents = []
     compliance_hold_agents = []
@@ -386,19 +395,24 @@ def get_admin_compliance_dashboard(
                 )
             )
 
-    documents_awaiting_review = len(
-        list(
-            db.scalars(
-                select(Document).where(Document.status == "Awaiting Review")
-            )
-        )
+    document_query = select(Document).where(Document.status == "Awaiting Review")
+    if agent_ids:
+        document_query = document_query.where(Document.agent_id.in_(agent_ids))
+    elif not can_manage_all_organizations(current_user):
+        document_query = document_query.where(Document.agent_id.in_([0]))
+    documents_awaiting_review = len(list(db.scalars(document_query)))
+
+    acceptance_query = (
+        select(PolicyAcceptance)
+        .options(selectinload(PolicyAcceptance.policy))
+        .order_by(PolicyAcceptance.accepted_date.desc(), PolicyAcceptance.id.desc())
     )
+    if agent_ids:
+        acceptance_query = acceptance_query.where(PolicyAcceptance.agent_id.in_(agent_ids))
+    elif not can_manage_all_organizations(current_user):
+        acceptance_query = acceptance_query.where(PolicyAcceptance.agent_id.in_([0]))
     acceptances = list(
-        db.scalars(
-            select(PolicyAcceptance)
-            .options(selectinload(PolicyAcceptance.policy))
-            .order_by(PolicyAcceptance.accepted_date.desc(), PolicyAcceptance.id.desc())
-        )
+        db.scalars(acceptance_query)
     )
 
     return AdminComplianceDashboardRead(

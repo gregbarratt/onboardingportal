@@ -76,6 +76,7 @@ class AgentProfileBase(BaseModel):
 
 class AgentProfileCreate(AgentProfileBase):
     user_id: int | None = None
+    organization_id: int | None = None
     agent_id: str | None = Field(default=None, max_length=50)
     status: str | None = None
     portal_access_enabled: bool | None = None
@@ -97,6 +98,7 @@ class AgentProfileCreate(AgentProfileBase):
 
 
 class AgentProfileUpdate(BaseModel):
+    organization_id: int | None = None
     first_name: str | None = Field(default=None, min_length=1, max_length=100)
     last_name: str | None = Field(default=None, min_length=1, max_length=100)
     email: str | None = Field(default=None, min_length=3, max_length=255)
@@ -173,6 +175,7 @@ class AgentProfileUpdate(BaseModel):
 class AgentProfileRead(AgentProfileBase):
     id: int
     user_id: int
+    organization_id: int | None = None
     agent_id: str
     status: str
     portal_access_enabled: bool

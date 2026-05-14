@@ -649,6 +649,7 @@ def assign_training_module(
 
     training_module = get_training_module_or_404(db, module_id)
     agent_profile = get_agent_or_404(db, request.agent_id)
+    check_agent_access(agent_profile, current_user)
     ensure_training_assignment(
         db,
         agent_profile,
@@ -903,6 +904,7 @@ def request_training_redo(
 ) -> AgentTrainingProgress:
     require_admin_user(current_user)
     agent_profile = get_agent_or_404(db, agent_profile_id)
+    check_agent_access(agent_profile, current_user)
     progress = get_training_progress_or_404(db, progress_id)
     if progress.agent_id != agent_profile.id:
         raise HTTPException(

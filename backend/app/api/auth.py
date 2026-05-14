@@ -20,6 +20,7 @@ from app.schemas.auth import (
 )
 from app.services.agent_ids import generate_next_agent_id
 from app.services.audit import create_audit_log
+from app.services.organizations import ensure_default_organization
 from app.services.passwords import hash_password, verify_password
 from app.services.stripe import (
     StripeIntegrationError,
@@ -53,7 +54,7 @@ def ensure_default_roles(db: Session) -> dict[str, Role]:
 def get_user_by_email(db: Session, email: str) -> User | None:
     return db.scalar(
         select(User)
-        .options(selectinload(User.role))
+        .options(selectinload(User.role), selectinload(User.organization))
         .where(User.email == email)
     )
 
@@ -61,7 +62,7 @@ def get_user_by_email(db: Session, email: str) -> User | None:
 def get_user_by_id(db: Session, user_id: int) -> User | None:
     return db.scalar(
         select(User)
-        .options(selectinload(User.role))
+        .options(selectinload(User.role), selectinload(User.organization))
         .where(User.id == user_id)
     )
 
@@ -78,10 +79,12 @@ def register_user(
         )
 
     roles = ensure_default_roles(db)
+    organization = ensure_default_organization(db)
     user = User(
         email=request.email,
         hashed_password=hash_password(request.password),
         role=roles["Agent"],
+        organization_id=organization.id,
     )
     db.add(user)
     db.flush()
@@ -114,16 +117,19 @@ def register_agent_and_start_payment(
         )
 
     roles = ensure_default_roles(db)
+    organization = ensure_default_organization(db)
     user = User(
         email=request.email,
         hashed_password=hash_password(request.password),
         role=roles["Agent"],
+        organization_id=organization.id,
     )
     db.add(user)
     db.flush()
 
     agent_profile = AgentProfile(
         user_id=user.id,
+        organization_id=organization.id,
         agent_id=generate_next_agent_id(db),
         first_name=request.first_name,
         last_name=request.last_name,

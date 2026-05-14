@@ -42,12 +42,14 @@ def main() -> None:
 
 
 def run_smoke_tests() -> None:
+    superadmin_token = login("superadmin@example.com", "Password123!")
     admin_token = login("admin@example.com", "Password123!")
     agent_token = login("david.smith@example.com", "Password123!")
     sarah_token = login("sarah.jones@example.com", "Password123!")
     mark_token = login("mark.evans@example.com", "Password123!")
     emma_token = login("emma.clarke@example.com", "Password123!")
 
+    superadmin_headers = auth_headers(superadmin_token)
     admin_headers = auth_headers(admin_token)
     agent_headers = auth_headers(agent_token)
     sarah_headers = auth_headers(sarah_token)
@@ -56,6 +58,7 @@ def run_smoke_tests() -> None:
 
     assert_status("current admin user", client.get("/auth/me", headers=admin_headers), 200)
     assert_status("agent blocked from audit logs", client.get("/audit-logs", headers=agent_headers), 403)
+    test_organizations(superadmin_headers, admin_headers)
 
     agents = assert_json("admin agent list", client.get("/agents", headers=admin_headers), 200)
     assert len(agents) >= 5, "Expected at least five demo agents."
@@ -102,9 +105,37 @@ def auth_headers(token: str) -> dict[str, str]:
 def test_agent_profile(headers: dict[str, str], agent: dict[str, Any]) -> None:
     profile = assert_json("agent profile", client.get(f"/agents/{agent['id']}", headers=headers), 200)
     assert profile["email"] == agent["email"], "Agent profile email did not match."
+    assert profile["organization_id"], "Agent organisation was missing."
     assert profile["personal_email"], "Agent personal email was missing."
     assert profile["company_email"], "Agent company email was missing."
     assert profile["portal_access_enabled"] is True, "Agent portal access flag was missing."
+
+
+def test_organizations(superadmin_headers: dict[str, str], admin_headers: dict[str, str]) -> None:
+    organizations = assert_json("organizations list", client.get("/organizations", headers=admin_headers), 200)
+    assert organizations, "Organisation list was empty."
+    assert organizations[0]["slug"] == "one-travel-club", "Default organisation was missing."
+
+    created = assert_json(
+        "create organization",
+        client.post(
+            "/organizations",
+            headers=superadmin_headers,
+            json={"name": "Partner Travel Company", "slug": "partner-travel-company", "status": "Active"},
+        ),
+        201,
+    )
+    assert created["slug"] == "partner-travel-company", "Organisation slug was not saved."
+
+    assert_status(
+        "normal admin blocked from creating organization",
+        client.post(
+            "/organizations",
+            headers=admin_headers,
+            json={"name": "Blocked Company", "slug": "blocked-company", "status": "Active"},
+        ),
+        403,
+    )
 
 
 def test_membership_and_payment(admin_headers: dict[str, str], agent: dict[str, Any], agent_headers: dict[str, str]) -> None:
@@ -324,8 +355,8 @@ def test_audit_logs(headers: dict[str, str], agent: dict[str, Any]) -> None:
 def test_agent_csv_import(headers: dict[str, str]) -> None:
     csv_text = "\n".join(
         [
-            "agent_id,first_name,last_name,login_email,personal_email,company_email,temporary_password,portal_access_enabled,phone,business_name,status,joining_date,address,postcode,commission_bank_name,commission_account_name,commission_sort_code,commission_account_number,membership_type,membership_status,payment_status,payment_method,setup_fee_amount,monthly_fee_amount,last_payment_date,next_payment_date,failed_payment_count,access_level,stripe_customer_id,stripe_subscription_id,internal_notes",
-            "OTC-90001,CSV,Import,csv.import@example.com,csv.personal@example.com,csv.import@onetravelclub.co.uk,,FALSE,07123 999999,CSV Travel,Payment Pending,2026-01-15,\"1 CSV Street, London\",SW1A 1AA,CSV Bank,CSV Import,11-22-33,87654321,Standard,Payment Pending,Pending,Stripe,99.00,49.00,,2026-02-15,0,Onboarding,cus_csv_import,sub_csv_import,Imported during smoke test",
+            "agent_id,organization_slug,first_name,last_name,login_email,personal_email,company_email,temporary_password,portal_access_enabled,phone,business_name,status,joining_date,address,postcode,commission_bank_name,commission_account_name,commission_sort_code,commission_account_number,membership_type,membership_status,payment_status,payment_method,setup_fee_amount,monthly_fee_amount,last_payment_date,next_payment_date,failed_payment_count,access_level,stripe_customer_id,stripe_subscription_id,internal_notes",
+            "OTC-90001,,CSV,Import,csv.import@example.com,csv.personal@example.com,csv.import@onetravelclub.co.uk,,FALSE,07123 999999,CSV Travel,Payment Pending,2026-01-15,\"1 CSV Street, London\",SW1A 1AA,CSV Bank,CSV Import,11-22-33,87654321,Standard,Payment Pending,Pending,Stripe,99.00,49.00,,2026-02-15,0,Onboarding,cus_csv_import,sub_csv_import,Imported during smoke test",
         ]
     )
     encoded_csv = base64.b64encode(csv_text.encode("utf-8")).decode("ascii")
@@ -345,6 +376,7 @@ def test_agent_csv_import(headers: dict[str, str]) -> None:
     agents = assert_json("agent list after CSV import", client.get("/agents", headers=headers), 200)
     imported_agent = find_agent(agents, "csv.import@example.com")
     assert imported_agent["agent_id"] == "OTC-90001", "Imported agent ID was not saved."
+    assert imported_agent["organization_id"], "Imported agent organisation was not saved."
     assert imported_agent["portal_access_enabled"] is False, "Imported portal access flag was not saved."
     assert imported_agent["company_email"] == "csv.import@onetravelclub.co.uk", "Imported company email was not saved."
 
