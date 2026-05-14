@@ -326,6 +326,63 @@ def sync_stripe_invoices_for_membership(
     return invoices
 
 
+def sync_stripe_customer_profile_for_agent(
+    *,
+    agent_profile: AgentProfile,
+    membership: Membership,
+) -> list[str]:
+    if not membership.stripe_customer_id:
+        return []
+
+    customer = retrieve_stripe_customer(membership.stripe_customer_id)
+    return apply_stripe_customer_details_to_agent_profile(agent_profile, customer)
+
+
+def apply_stripe_customer_details_to_agent_profile(agent_profile: AgentProfile, customer: dict[str, Any]) -> list[str]:
+    updated_fields: list[str] = []
+
+    customer_email = text_or_none(customer.get("email"))
+    if customer_email and not text_or_none(agent_profile.personal_email):
+        agent_profile.personal_email = customer_email.lower()
+        updated_fields.append("personal_email")
+
+    customer_phone = text_or_none(customer.get("phone"))
+    if customer_phone and not text_or_none(agent_profile.phone):
+        agent_profile.phone = customer_phone
+        updated_fields.append("phone")
+
+    address = customer.get("address") if isinstance(customer.get("address"), dict) else {}
+    postal_code = text_or_none(address.get("postal_code"))
+    if postal_code and not text_or_none(agent_profile.postcode):
+        agent_profile.postcode = postal_code
+        updated_fields.append("postcode")
+
+    billing_address = format_stripe_billing_address(address)
+    if billing_address and not text_or_none(agent_profile.address):
+        agent_profile.address = billing_address
+        updated_fields.append("address")
+
+    metadata = customer.get("metadata") if isinstance(customer.get("metadata"), dict) else {}
+    business_name = text_or_none(metadata.get("business_name") or metadata.get("company_name"))
+    if business_name and not text_or_none(agent_profile.business_name):
+        agent_profile.business_name = business_name
+        updated_fields.append("business_name")
+
+    return updated_fields
+
+
+def format_stripe_billing_address(address: dict[str, Any]) -> str | None:
+    address_parts = [
+        text_or_none(address.get("line1")),
+        text_or_none(address.get("line2")),
+        text_or_none(address.get("city")),
+        text_or_none(address.get("state")),
+        text_or_none(address.get("country")),
+    ]
+    lines = [part for part in address_parts if part]
+    return ", ".join(lines) or None
+
+
 def sync_stripe_subscription_for_membership(
     db: Session,
     *,

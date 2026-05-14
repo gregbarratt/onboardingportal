@@ -126,6 +126,8 @@ export default function AdminAgentListPage() {
                 <ImportStat label="Next ID" value={importResult.next_agent_id} />
                 <ImportStat label="Stripe synced" value={importResult.stripe_synced} />
                 <ImportStat label="Stripe issues" value={importResult.stripe_sync_failed} />
+                <ImportStat label="Profiles enriched" value={importResult.stripe_profiles_synced} />
+                <ImportStat label="Profile fields filled" value={importResult.stripe_profile_fields_synced} />
                 <ImportStat label="Invoices synced" value={importResult.stripe_invoices_synced} />
                 <ImportStat label="Subscriptions synced" value={importResult.stripe_subscriptions_synced} />
               </div>

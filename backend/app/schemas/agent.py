@@ -205,6 +205,8 @@ class AgentCsvImportResponse(BaseModel):
     skipped: int
     stripe_synced: int = 0
     stripe_sync_failed: int = 0
+    stripe_profiles_synced: int = 0
+    stripe_profile_fields_synced: int = 0
     stripe_invoices_synced: int = 0
     stripe_subscriptions_synced: int = 0
     errors: list[AgentCsvImportError]

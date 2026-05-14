@@ -31,6 +31,7 @@ from app.services.organizations import can_manage_all_organizations, ensure_defa
 from app.services.passwords import hash_password
 from app.services.stripe import (
     StripeIntegrationError,
+    sync_stripe_customer_profile_for_agent,
     sync_stripe_invoices_for_membership,
     sync_stripe_subscription_for_membership,
 )
@@ -84,6 +85,8 @@ def import_agents_from_csv(
         "skipped": 0,
         "stripe_synced": 0,
         "stripe_sync_failed": 0,
+        "stripe_profiles_synced": 0,
+        "stripe_profile_fields_synced": 0,
         "stripe_invoices_synced": 0,
         "stripe_subscriptions_synced": 0,
         "errors": [],
@@ -110,6 +113,8 @@ def import_agents_from_csv(
                     )
                     result["stripe_synced"] += sync_result["stripe_synced"]
                     result["stripe_sync_failed"] += sync_result["stripe_sync_failed"]
+                    result["stripe_profiles_synced"] += sync_result["stripe_profiles_synced"]
+                    result["stripe_profile_fields_synced"] += sync_result["stripe_profile_fields_synced"]
                     result["stripe_invoices_synced"] += sync_result["stripe_invoices_synced"]
                     result["stripe_subscriptions_synced"] += sync_result["stripe_subscriptions_synced"]
                 except AgentImportRowError as exc:
@@ -146,12 +151,18 @@ def sync_imported_agent_stripe(
         return {
             "stripe_synced": 0,
             "stripe_sync_failed": 0,
+            "stripe_profiles_synced": 0,
+            "stripe_profile_fields_synced": 0,
             "stripe_invoices_synced": 0,
             "stripe_subscriptions_synced": 0,
         }
 
     try:
         with db.begin_nested():
+            profile_fields = sync_stripe_customer_profile_for_agent(
+                agent_profile=agent_profile,
+                membership=membership,
+            )
             subscription = sync_stripe_subscription_for_membership(
                 db,
                 agent_profile=agent_profile,
@@ -170,6 +181,8 @@ def sync_imported_agent_stripe(
     return {
         "stripe_synced": 1,
         "stripe_sync_failed": 0,
+        "stripe_profiles_synced": 1 if profile_fields else 0,
+        "stripe_profile_fields_synced": len(profile_fields),
         "stripe_invoices_synced": len(invoices),
         "stripe_subscriptions_synced": 1 if subscription is not None else 0,
     }
