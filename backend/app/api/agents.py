@@ -1,4 +1,4 @@
-from fastapi import APIRouter, BackgroundTasks, Depends, HTTPException, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
@@ -6,14 +6,17 @@ from sqlalchemy.orm import Session
 from app.api.deps import get_current_active_user
 from app.core.agent_statuses import DEFAULT_AGENT_STATUS
 from app.core.roles import ADMIN_ROLE_NAMES
-from app.db.session import SessionLocal, get_db
+from app.db.session import get_db
 from app.models.agent_profile import AgentProfile
+from app.models.membership import Membership
 from app.models.user import User
 from app.schemas.agent import (
     AgentCsvImportRequest,
     AgentCsvImportResponse,
     AgentProfileCreate,
     AgentProfileRead,
+    AgentStripeSyncBatchRequest,
+    AgentStripeSyncBatchResponse,
     AgentProfileUpdate,
     FinalApprovalStatusRead,
 )
@@ -167,7 +170,6 @@ def list_agent_profiles(
 @router.post("/import/csv", response_model=AgentCsvImportResponse)
 def import_agent_csv(
     request: AgentCsvImportRequest,
-    background_tasks: BackgroundTasks,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> dict:
@@ -179,37 +181,87 @@ def import_agent_csv(
 
     result = import_agents_from_csv(db, request, current_user=current_user)
     stripe_sync_agent_ids = result.pop("_stripe_sync_agent_ids", [])
-    if stripe_sync_agent_ids:
-        background_tasks.add_task(
-            sync_imported_agents_stripe_background,
-            stripe_sync_agent_ids,
-            current_user.id,
-        )
+    result["stripe_sync_queued"] = len(stripe_sync_agent_ids)
+    result["stripe_sync_agent_ids"] = stripe_sync_agent_ids
     return result
 
 
-def sync_imported_agents_stripe_background(agent_profile_ids: list[int], current_user_id: int) -> None:
-    db = SessionLocal()
-    try:
-        current_user = db.get(User, current_user_id)
-        if current_user is None:
-            return
+@router.post("/stripe/import-sync-batch", response_model=AgentStripeSyncBatchResponse)
+def sync_imported_agents_stripe_batch(
+    request: AgentStripeSyncBatchRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> dict:
+    if not is_admin_user(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can sync Stripe data.",
+        )
 
-        for agent_profile_id in agent_profile_ids:
-            agent_profile = db.get(AgentProfile, agent_profile_id)
-            if agent_profile is None:
-                continue
-            try:
-                sync_imported_agent_stripe(
-                    db,
-                    agent_profile=agent_profile,
-                    current_user=current_user,
-                )
-                db.commit()
-            except AgentImportRowError:
-                db.rollback()
-    finally:
-        db.close()
+    query = (
+        select(AgentProfile)
+        .join(Membership, Membership.agent_id == AgentProfile.id)
+        .where(Membership.stripe_customer_id.is_not(None))
+        .where(Membership.stripe_customer_id != "")
+    )
+    if request.agent_profile_ids:
+        query = query.where(AgentProfile.id.in_(request.agent_profile_ids))
+    if request.after_agent_id is not None:
+        query = query.where(AgentProfile.id > request.after_agent_id)
+    if not can_manage_all_organizations(current_user):
+        if current_user.organization_id is None:
+            return empty_stripe_batch_response(done=True)
+        query = query.where(AgentProfile.organization_id == current_user.organization_id)
+
+    agents = list(db.scalars(query.order_by(AgentProfile.id).limit(request.limit + 1)))
+    selected_agents = agents[: request.limit]
+    has_more = len(agents) > request.limit
+
+    result = empty_stripe_batch_response(done=not has_more)
+    result["processed"] = len(selected_agents)
+    result["next_after_agent_id"] = selected_agents[-1].id if selected_agents else request.after_agent_id
+
+    for agent_profile in selected_agents:
+        try:
+            sync_result = sync_imported_agent_stripe(
+                db,
+                agent_profile=agent_profile,
+                current_user=current_user,
+            )
+            db.commit()
+            result["stripe_synced"] += sync_result["stripe_synced"]
+            result["stripe_profiles_synced"] += sync_result["stripe_profiles_synced"]
+            result["stripe_profile_fields_synced"] += sync_result["stripe_profile_fields_synced"]
+            result["stripe_invoices_synced"] += sync_result["stripe_invoices_synced"]
+            result["stripe_subscriptions_synced"] += sync_result["stripe_subscriptions_synced"]
+        except AgentImportRowError as exc:
+            db.rollback()
+            result["stripe_sync_failed"] += 1
+            result["errors"].append(
+                {
+                    "agent_id": agent_profile.id,
+                    "identifier": agent_profile.agent_id,
+                    "message": str(exc),
+                }
+            )
+
+    return result
+
+
+def empty_stripe_batch_response(*, done: bool) -> dict:
+    return {
+        "processed": 0,
+        "stripe_synced": 0,
+        "stripe_sync_failed": 0,
+        "stripe_profiles_synced": 0,
+        "stripe_profile_fields_synced": 0,
+        "stripe_invoices_synced": 0,
+        "stripe_subscriptions_synced": 0,
+        "next_after_agent_id": None,
+        "has_more": not done,
+        "done": done,
+        "errors": [],
+    }
 
 
 @router.get("/{agent_profile_id}", response_model=AgentProfileRead)

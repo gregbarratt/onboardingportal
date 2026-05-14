@@ -21,6 +21,7 @@ export default function AdminAgentListPage() {
   const [importError, setImportError] = useState("");
   const [importResult, setImportResult] = useState(null);
   const [syncStripeAfterImport, setSyncStripeAfterImport] = useState(true);
+  const [stripeSyncing, setStripeSyncing] = useState(false);
 
   const filteredAgents = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -57,10 +58,48 @@ export default function AdminAgentListPage() {
       );
       setImportResult(result);
       await agents.reload();
+      if (syncStripeAfterImport && result.stripe_sync_agent_ids?.length) {
+        void runStripeSyncBatches(result);
+      }
     } catch (err) {
       setImportError(getFriendlyError(err, "We could not import this CSV file."));
     } finally {
       setImporting(false);
+    }
+  }
+
+  async function runStripeSyncBatches(startResult) {
+    const agentIds = startResult.stripe_sync_agent_ids || [];
+    if (!agentIds.length) return;
+
+    setStripeSyncing(true);
+    let afterAgentId = null;
+    let totals = { ...startResult };
+
+    try {
+      while (true) {
+        const batch = await apiClient.post(
+          "/agents/stripe/import-sync-batch",
+          {
+            agent_profile_ids: agentIds,
+            after_agent_id: afterAgentId,
+            limit: 1,
+          },
+          token,
+        );
+
+        totals = mergeStripeBatchResult(totals, batch);
+        afterAgentId = batch.next_after_agent_id;
+        setImportResult(totals);
+
+        if (batch.done || !batch.has_more || !afterAgentId) break;
+        await wait(300);
+      }
+      await agents.reload();
+    } catch (err) {
+      setImportError(getFriendlyError(err, "The agents imported, but the Stripe refresh stopped."));
+    } finally {
+      setStripeSyncing(false);
     }
   }
 
@@ -80,7 +119,7 @@ export default function AdminAgentListPage() {
 
         <Card
           title="Import Agents"
-          description="Upload the completed CSV to create or update agent profiles, membership details, and Stripe IDs. If no organisation is named in the CSV, agents are added to your organisation. If Stripe sync is switched on, the portal will queue a live payment refresh in the background so this screen stays quick."
+          description="Upload the completed CSV to create or update agent profiles, membership details, and Stripe IDs. If no organisation is named in the CSV, agents are added to your organisation. If Stripe refresh is switched on, the portal saves the import first, then refreshes Stripe in small batches while this page stays open."
           actions={
             <a
               className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-4 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
@@ -109,7 +148,7 @@ export default function AdminAgentListPage() {
                 onChange={(event) => setSyncStripeAfterImport(event.target.checked)}
                 className="h-4 w-4 rounded border-slate-300 text-teal-700 focus:ring-teal-700"
               />
-              Queue live Stripe payments after import
+              Refresh live Stripe payments after import
             </label>
             <PrimaryButton type="submit" icon={importing ? FileUp : Upload} disabled={importing}>
               {importing ? "Importing..." : "Import agents"}
@@ -132,6 +171,11 @@ export default function AdminAgentListPage() {
                 <ImportStat label="Invoices synced" value={importResult.stripe_invoices_synced} />
                 <ImportStat label="Subscriptions synced" value={importResult.stripe_subscriptions_synced} />
               </div>
+              {stripeSyncing ? (
+                <div className="rounded-lg border border-sky-200 bg-sky-50 p-4 text-sm font-medium text-sky-800">
+                  Stripe payment refresh is running in small batches. You can stay on this page while the numbers update.
+                </div>
+              ) : null}
               {importResult.errors?.length ? (
                 <DataTable
                   rows={importResult.errors}
@@ -144,7 +188,7 @@ export default function AdminAgentListPage() {
                 />
               ) : (
                 <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-700">
-                  Import completed with no row errors. Stripe payment data will continue refreshing in the background where queued.
+                  Import completed with no row errors. Stripe payment data refreshes in small batches where queued.
                 </div>
               )}
             </div>
@@ -224,6 +268,35 @@ function ImportStat({ label, value }) {
       <p className="mt-1 text-lg font-semibold text-slate-950">{value ?? 0}</p>
     </div>
   );
+}
+
+const stripeResultKeys = [
+  "stripe_synced",
+  "stripe_sync_failed",
+  "stripe_profiles_synced",
+  "stripe_profile_fields_synced",
+  "stripe_invoices_synced",
+  "stripe_subscriptions_synced",
+];
+
+function mergeStripeBatchResult(importResult, batch) {
+  const next = { ...importResult };
+  stripeResultKeys.forEach((key) => {
+    next[key] = (next[key] || 0) + (batch[key] || 0);
+  });
+  const batchErrors = (batch.errors || []).map((error) => ({
+    row_number: "Stripe",
+    identifier: error.identifier || `Agent ${error.agent_id}`,
+    message: error.message,
+  }));
+  next.errors = [...(next.errors || []), ...batchErrors];
+  return next;
+}
+
+function wait(milliseconds) {
+  return new Promise((resolve) => {
+    window.setTimeout(resolve, milliseconds);
+  });
 }
 
 function readFileAsBase64(file) {

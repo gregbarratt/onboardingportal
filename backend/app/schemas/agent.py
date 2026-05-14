@@ -204,6 +204,7 @@ class AgentCsvImportResponse(BaseModel):
     updated: int
     skipped: int
     stripe_sync_queued: int = 0
+    stripe_sync_agent_ids: list[int] = Field(default_factory=list)
     stripe_synced: int = 0
     stripe_sync_failed: int = 0
     stripe_profiles_synced: int = 0
@@ -212,6 +213,32 @@ class AgentCsvImportResponse(BaseModel):
     stripe_subscriptions_synced: int = 0
     errors: list[AgentCsvImportError]
     next_agent_id: str
+
+
+class AgentStripeSyncBatchRequest(BaseModel):
+    agent_profile_ids: list[int] = Field(default_factory=list)
+    after_agent_id: int | None = None
+    limit: int = Field(default=1, ge=1, le=5)
+
+
+class AgentStripeSyncBatchError(BaseModel):
+    agent_id: int
+    identifier: str | None = None
+    message: str
+
+
+class AgentStripeSyncBatchResponse(BaseModel):
+    processed: int
+    stripe_synced: int = 0
+    stripe_sync_failed: int = 0
+    stripe_profiles_synced: int = 0
+    stripe_profile_fields_synced: int = 0
+    stripe_invoices_synced: int = 0
+    stripe_subscriptions_synced: int = 0
+    next_after_agent_id: int | None = None
+    has_more: bool
+    done: bool
+    errors: list[AgentStripeSyncBatchError] = Field(default_factory=list)
 
 
 class FinalApprovalRequirementRead(BaseModel):
