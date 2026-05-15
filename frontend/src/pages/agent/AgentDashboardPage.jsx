@@ -109,7 +109,7 @@ function DashboardContent({ profile }) {
           <div className="flex h-full min-h-56 flex-col items-center justify-center gap-5">
             <RingProgress value={trainingProgress} />
             <div className="flex flex-wrap items-center justify-center gap-4 text-xs text-slate-600">
-              <LegendDot color="bg-[#7a0f25]" label="Training" />
+              <LegendDot color="bg-[#E83F6F]" label="Training" />
               <LegendDot color="bg-slate-400" label="Attendance" />
             </div>
           </div>
@@ -162,22 +162,22 @@ function DashboardContent({ profile }) {
       </div>
 
       <DashboardPanel title="Key Performance Indicators" compact>
-        <div className="overflow-x-auto rounded-lg border border-[#172334]">
+        <div className="overflow-x-auto rounded-lg border border-[#005A83]">
           <div className="min-w-[760px] overflow-hidden">
-            <div className="grid grid-cols-[1.2fr_0.8fr_1.4fr_0.7fr_0.6fr] bg-[#172334] px-4 py-2 text-sm font-semibold text-white">
+            <div className="grid grid-cols-[1.2fr_0.8fr_1.4fr_0.7fr_0.6fr] bg-[#005A83] px-4 py-2 text-sm font-semibold text-white">
               <span>KPIs</span>
               <span>Status</span>
               <span>Business</span>
               <span>Attendance</span>
               <span>Score</span>
             </div>
-            <div className="divide-y divide-white/15 bg-[#21395f]">
+            <div className="divide-y divide-white/15 bg-[#005A83]">
               {kpis.map((item) => (
                 <div
                   key={item.label}
                   className={[
                     "grid grid-cols-[1.2fr_0.8fr_1.4fr_0.7fr_0.6fr] px-4 py-3 text-sm text-white",
-                    item.highlighted ? "bg-[#b34d2b]" : "bg-[#263f68]",
+                    item.highlighted ? "bg-[#E83F6F]" : "bg-[#00496b]",
                   ].join(" ")}
                 >
                   <span>{item.label}</span>
@@ -204,7 +204,7 @@ function DashboardContent({ profile }) {
         <DashboardPanel
           title="Next onboarding steps"
           actions={
-            <Link className="text-sm font-semibold text-[#b34d2b] hover:text-[#8f3c21]" to="/onboarding">
+            <Link className="text-sm font-semibold text-[#005A83] hover:text-[#00364f]" to="/onboarding">
               View checklist
             </Link>
           }
@@ -275,7 +275,7 @@ function RingProgress({ value }) {
           cy="70"
           r={radius}
           fill="none"
-          stroke="#7a0f25"
+          stroke="#E83F6F"
           strokeLinecap="round"
           strokeWidth="18"
           strokeDasharray={circumference}
@@ -306,8 +306,8 @@ function MiniLineChart({ value }) {
       <div className="absolute inset-x-0 top-1/3 border-t border-slate-200" />
       <div className="absolute inset-x-0 top-2/3 border-t border-slate-200" />
       <svg className="absolute inset-0 h-full w-full" viewBox="0 0 320 80" preserveAspectRatio="none" aria-hidden="true">
-        <path d={`M0 65 C 60 65, 90 55, 130 52 S 210 ${endY + 8}, 320 ${endY}`} fill="none" stroke="#172334" strokeWidth="3" />
-        <path d={`M0 80 L0 65 C 60 65, 90 55, 130 52 S 210 ${endY + 8}, 320 ${endY} L320 80 Z`} fill="#172334" opacity="0.08" />
+        <path d={`M0 65 C 60 65, 90 55, 130 52 S 210 ${endY + 8}, 320 ${endY}`} fill="none" stroke="#005A83" strokeWidth="3" />
+        <path d={`M0 80 L0 65 C 60 65, 90 55, 130 52 S 210 ${endY + 8}, 320 ${endY} L320 80 Z`} fill="#005A83" opacity="0.08" />
       </svg>
     </div>
   );
@@ -321,7 +321,7 @@ function VerticalComplianceBars({ value }) {
       {bars.map((height, index) => (
         <div key={`${height}-${index}`} className="flex h-full w-3 items-end rounded-full bg-slate-200">
           <span
-            className={`w-full rounded-full ${index >= bars.length - 2 ? "bg-[#b34d2b]" : "bg-slate-400"}`}
+            className={`w-full rounded-full ${index >= bars.length - 2 ? "bg-[#E83F6F]" : "bg-[#32936F]"}`}
             style={{ height: `${height}%` }}
           />
         </div>
@@ -335,7 +335,7 @@ function MiniBar({ label, value }) {
     <div className="grid grid-cols-[90px_1fr_42px] items-center gap-3 text-sm">
       <span className="text-slate-700">{label}</span>
       <span className="h-2 rounded-full bg-slate-200">
-        <span className="block h-2 rounded-full bg-[#b99a5b]" style={{ width: `${value}%` }} />
+        <span className="block h-2 rounded-full bg-[#FFBF00]" style={{ width: `${value}%` }} />
       </span>
       <span className="text-right font-medium text-slate-700">{value}%</span>
     </div>
@@ -345,15 +345,15 @@ function MiniBar({ label, value }) {
 function Sparkline() {
   return (
     <svg className="h-7 w-20" viewBox="0 0 80 28" aria-hidden="true">
-      <path d="M2 22 L16 20 L28 16 L42 18 L56 10 L78 4" fill="none" stroke="#f7d9a8" strokeWidth="2" />
+      <path d="M2 22 L16 20 L28 16 L42 18 L56 10 L78 4" fill="none" stroke="#FFBF00" strokeWidth="2" />
     </svg>
   );
 }
 
 function QuickLink({ to, icon: Icon, label, detail }) {
   return (
-    <Link to={to} className="rounded-lg border border-slate-200 bg-white p-4 transition hover:border-[#b34d2b] hover:bg-orange-50">
-      <Icon className="h-5 w-5 text-[#b34d2b]" aria-hidden="true" />
+    <Link to={to} className="rounded-lg border border-slate-200 bg-white p-4 transition hover:border-[#005A83] hover:bg-sky-50">
+      <Icon className="h-5 w-5 text-[#005A83]" aria-hidden="true" />
       <p className="mt-3 text-sm font-semibold text-slate-900">{label}</p>
       <p className="mt-1 text-sm text-slate-600">{detail}</p>
     </Link>

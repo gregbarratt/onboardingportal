@@ -65,15 +65,15 @@ export default function DashboardLayout() {
   const showAdmin = adminRoles.includes(roleName);
 
   return (
-    <div className="min-h-screen bg-[#eef2f6]">
-      <aside className="fixed inset-y-0 left-0 z-20 hidden w-72 border-r border-[#32445b] bg-[#172334] lg:block">
-        <div className="flex h-16 items-center gap-3 border-b border-[#32445b] px-5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#9b3f21] text-sm font-bold text-white shadow-sm ring-1 ring-white/15">
+    <div className="min-h-screen bg-[#edf8fc]">
+      <aside className="fixed inset-y-0 left-0 z-20 hidden w-72 border-r border-[#00496b] bg-[#005A83] lg:block">
+        <div className="flex h-16 items-center gap-3 border-b border-[#00496b] px-5">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#E83F6F] text-sm font-bold text-white shadow-sm ring-1 ring-white/20">
             OTC
           </div>
           <div>
             <p className="text-sm font-semibold text-white">One Travel Club</p>
-            <p className="text-xs text-slate-300">Onboarding Hub</p>
+            <p className="text-xs text-white/75">Onboarding Hub</p>
           </div>
         </div>
         <nav className="flex h-[calc(100vh-4rem)] flex-col gap-1 overflow-y-auto px-3 py-4">
@@ -89,15 +89,15 @@ export default function DashboardLayout() {
             className="absolute inset-0 bg-slate-950/40"
             onClick={() => setMobileNavOpen(false)}
           />
-          <aside className="relative flex h-full w-80 max-w-[86vw] flex-col border-r border-[#32445b] bg-[#172334] shadow-soft">
-            <div className="flex h-16 items-center justify-between border-b border-[#32445b] px-5">
+          <aside className="relative flex h-full w-80 max-w-[86vw] flex-col border-r border-[#00496b] bg-[#005A83] shadow-soft">
+            <div className="flex h-16 items-center justify-between border-b border-[#00496b] px-5">
               <div className="flex items-center gap-3">
-                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#9b3f21] text-sm font-bold text-white shadow-sm ring-1 ring-white/15">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#E83F6F] text-sm font-bold text-white shadow-sm ring-1 ring-white/20">
                   OTC
                 </div>
                 <div>
                   <p className="text-sm font-semibold text-white">One Travel Club</p>
-                  <p className="text-xs text-slate-300">Onboarding Hub</p>
+                  <p className="text-xs text-white/75">Onboarding Hub</p>
                 </div>
               </div>
               <button
@@ -118,7 +118,7 @@ export default function DashboardLayout() {
       )}
 
       <div className="lg:pl-72">
-        <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-[#32445b] bg-[#172334] px-4 text-white shadow-sm lg:px-8">
+        <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-[#00496b] bg-[#005A83] px-4 text-white shadow-sm lg:px-8">
           <div className="flex items-center gap-3">
             <button
               type="button"
@@ -131,7 +131,7 @@ export default function DashboardLayout() {
             </button>
             <div>
               <p className="text-sm font-semibold text-white">Travel Agent Onboarding Hub</p>
-              <p className="text-xs text-slate-300">{roleName}</p>
+              <p className="text-xs text-white/75">{roleName}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -139,7 +139,7 @@ export default function DashboardLayout() {
             <button
               type="button"
               onClick={logout}
-              className="focus-ring inline-flex items-center gap-2 rounded-lg border border-[#c6a56e] px-3 py-2 text-sm font-semibold text-[#f5dca9] transition hover:bg-white/10"
+              className="focus-ring inline-flex items-center gap-2 rounded-lg border border-[#FFBF00] px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
             >
               <LogOut size={17} />
               Sign out
@@ -219,12 +219,12 @@ function AlertsButton({ token }) {
       <button
         type="button"
         onClick={() => setOpen((current) => !current)}
-        className="focus-ring relative inline-flex items-center gap-2 rounded-lg border border-[#c6a56e] px-3 py-2 text-sm font-semibold text-[#f5dca9] transition hover:bg-white/10"
+        className="focus-ring relative inline-flex items-center gap-2 rounded-lg border border-[#FFBF00] px-3 py-2 text-sm font-semibold text-white transition hover:bg-white/10"
       >
         <Bell size={16} />
         <span className="hidden sm:inline">Alerts</span>
         {unreadCount ? (
-          <span className="absolute -right-2 -top-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#b34d2b] px-1 text-xs font-bold text-white ring-2 ring-[#172334]">
+          <span className="absolute -right-2 -top-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#E83F6F] px-1 text-xs font-bold text-white ring-2 ring-[#005A83]">
             {unreadCount > 9 ? "9+" : unreadCount}
           </span>
         ) : null}
@@ -241,7 +241,7 @@ function AlertsButton({ token }) {
               type="button"
               onClick={markAllRead}
               disabled={!unreadCount}
-              className="rounded-md px-2 py-1 text-xs font-semibold text-[#b34d2b] transition hover:bg-orange-50 disabled:cursor-not-allowed disabled:text-slate-400"
+              className="rounded-md px-2 py-1 text-xs font-semibold text-[#005A83] transition hover:bg-amber-50 disabled:cursor-not-allowed disabled:text-slate-400"
             >
               Mark all read
             </button>
@@ -281,9 +281,9 @@ function AlertsButton({ token }) {
 
 function AlertItem({ notification, onOpen, onMarkRead }) {
   const content = (
-    <div className={`block w-full px-4 py-3 text-left transition ${notification.read ? "bg-white hover:bg-slate-50" : "bg-orange-50/60 hover:bg-orange-50"}`}>
+    <div className={`block w-full px-4 py-3 text-left transition ${notification.read ? "bg-white hover:bg-slate-50" : "bg-amber-50/70 hover:bg-amber-50"}`}>
       <div className="flex items-start gap-3">
-        <span className={`mt-1 h-2.5 w-2.5 rounded-full ${notification.read ? "bg-slate-300" : "bg-[#b34d2b]"}`} />
+        <span className={`mt-1 h-2.5 w-2.5 rounded-full ${notification.read ? "bg-slate-300" : "bg-[#E83F6F]"}`} />
         <div className="min-w-0 flex-1">
           <div className="flex items-start justify-between gap-3">
             <p className="text-sm font-semibold text-slate-950">{notification.title}</p>
@@ -330,7 +330,7 @@ function NavigationLinks({ showAdmin, onNavigate }) {
       {showAdmin ? (
         <>
           <div className="mt-4 border-t border-white/10 pt-4">
-            <p className="px-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Admin</p>
+            <p className="px-3 text-xs font-semibold uppercase tracking-wide text-white/65">Admin</p>
           </div>
           {adminNavItems.map((item) => (
             <SidebarLink key={item.to} item={item} onNavigate={onNavigate} />
@@ -352,7 +352,7 @@ function SidebarLink({ item, onNavigate }) {
       className={({ isActive }) =>
         [
           "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition",
-          isActive ? "bg-[#b34d2b] text-white shadow-sm" : "text-slate-200 hover:bg-white/10 hover:text-white",
+          isActive ? "bg-[#32936F] text-white shadow-sm" : "text-white/85 hover:bg-white/10 hover:text-white",
         ].join(" ")
       }
     >
