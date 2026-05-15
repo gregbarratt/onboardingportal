@@ -119,6 +119,25 @@ export default function AdminTrainingModuleBuilderPage() {
     setForm((current) => ({ ...current, [field]: value }));
   }
 
+  function tidyOptional(value) {
+    const cleaned = String(value ?? "").trim();
+    return cleaned || null;
+  }
+
+  function validateQuizRows() {
+    for (const [questionIndex, question] of quizQuestions.entries()) {
+      if (!question.question_text.trim()) {
+        return `Question ${questionIndex + 1} needs question text, or remove the blank question before saving.`;
+      }
+      for (const [optionIndex, option] of question.options.entries()) {
+        if (!option.option_text.trim()) {
+          return `Question ${questionIndex + 1}, answer option ${optionIndex + 1} needs text, or remove the blank option before saving.`;
+        }
+      }
+    }
+    return "";
+  }
+
   async function createCategory(event) {
     event.preventDefault();
     if (!newCategory.trim()) return;
@@ -142,9 +161,24 @@ export default function AdminTrainingModuleBuilderPage() {
     setMessage("");
     setError("");
 
+    const quizError = validateQuizRows();
+    if (quizError) {
+      setError(quizError);
+      setSaving(false);
+      return;
+    }
+
     const payload = {
       ...form,
       category_id: Number(form.category_id),
+      description: tidyOptional(form.description),
+      level: tidyOptional(form.level),
+      estimated_completion_time: tidyOptional(form.estimated_completion_time),
+      content_type: tidyOptional(form.content_type),
+      content_url: tidyOptional(form.content_url),
+      video_url: tidyOptional(form.video_url),
+      pdf_url: tidyOptional(form.pdf_url),
+      text_content: tidyOptional(form.text_content),
       pass_mark: form.pass_mark === "" ? null : Number(form.pass_mark),
       renewal_period_months: form.renewal_period_months === "" ? null : Number(form.renewal_period_months),
       expiry_date: form.expiry_date || null,
@@ -161,10 +195,10 @@ export default function AdminTrainingModuleBuilderPage() {
         {
           questions: quizQuestions.map((question) => ({
             id: question.id || null,
-            question_text: question.question_text,
+            question_text: question.question_text.trim(),
             options: question.options.map((option) => ({
               id: option.id || null,
-              option_text: option.option_text,
+              option_text: option.option_text.trim(),
               is_correct: Boolean(option.is_correct),
             })),
           })),
@@ -192,6 +226,14 @@ export default function AdminTrainingModuleBuilderPage() {
       setError("Choose a file first.");
       return;
     }
+    if (!file.name?.trim()) {
+      setError("Choose a named video or PDF file before uploading.");
+      return;
+    }
+    if (file.size <= 0) {
+      setError("This file looks empty. Please choose the correct training file and try again.");
+      return;
+    }
 
     setError("");
     setMessage("");
@@ -201,7 +243,7 @@ export default function AdminTrainingModuleBuilderPage() {
         `/training/modules/${moduleId}/materials`,
         {
           material_type: materialType,
-          file_name: file.name,
+          file_name: file.name.trim(),
           file_content_base64: fileContentBase64,
         },
         token,
@@ -484,6 +526,7 @@ function MaterialUpload({ title, icon: Icon, accept, disabled, saved, onUpload }
   const [uploading, setUploading] = useState(false);
 
   async function handleUpload() {
+    if (!file) return;
     setUploading(true);
     try {
       await onUpload(file);
@@ -532,7 +575,12 @@ function readFileAsBase64(file) {
     const reader = new FileReader();
     reader.onload = () => {
       const result = String(reader.result || "");
-      resolve(result.split(",", 2)[1] || result);
+      const fileContentBase64 = result.split(",", 2)[1] || result;
+      if (!fileContentBase64.trim()) {
+        reject(new Error("The selected file could not be read. Please choose it again."));
+        return;
+      }
+      resolve(fileContentBase64);
     };
     reader.onerror = () => reject(new Error("The file could not be read."));
     reader.readAsDataURL(file);

@@ -278,9 +278,28 @@ class AgentTrainingProgressRead(BaseModel):
 
 class TrainingMaterialUploadRequest(BaseModel):
     material_type: str = Field(pattern="^(Video|PDF)$")
-    file_name: str = Field(min_length=1, max_length=255)
-    file_content_base64: str = Field(min_length=1)
+    file_name: str = Field(max_length=255)
+    file_content_base64: str
 
+    @field_validator("file_name", mode="before")
+    @classmethod
+    def file_name_must_not_be_blank(cls, value: object) -> str:
+        if not isinstance(value, str):
+            raise ValueError("Choose a video or PDF file before uploading.")
+        cleaned = clean_optional_text(value)
+        if cleaned is None:
+            raise ValueError("Choose a video or PDF file before uploading.")
+        return cleaned
+
+    @field_validator("file_content_base64", mode="before")
+    @classmethod
+    def file_content_must_not_be_blank(cls, value: object) -> str:
+        if not isinstance(value, str):
+            raise ValueError("The selected file could not be read. Please choose the file again.")
+        cleaned = clean_optional_text(value)
+        if cleaned is None:
+            raise ValueError("The selected file could not be read. Please choose the file again.")
+        return cleaned
 
 class TrainingQuizOptionInput(BaseModel):
     id: int | None = None
