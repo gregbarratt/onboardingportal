@@ -9,14 +9,19 @@ ONBOARDING_STATUSES = (
 
 DEFAULT_ONBOARDING_STATUS = "Not Started"
 
+REMOVED_DEFAULT_ONBOARDING_STEP_TITLES = (
+    "Create account",
+    "Pay setup fee",
+    "Set up recurring membership payment",
+    "Attend welcome call",
+    "Attend compliance call",
+    "Complete compliance training",
+    "Complete CRM training",
+    "Complete supplier training",
+    "Accept social media and advertising policy",
+)
+
 DEFAULT_ONBOARDING_STEPS = (
-    {
-        "sort_order": 1,
-        "title": "Create account",
-        "description": "Agent creates their portal login account.",
-        "required": True,
-        "approval_required": False,
-    },
     {
         "sort_order": 2,
         "title": "Complete personal profile",
@@ -56,62 +61,6 @@ DEFAULT_ONBOARDING_STEPS = (
         "sort_order": 7,
         "title": "Accept membership terms",
         "description": "Agent accepts the membership terms.",
-        "required": True,
-        "approval_required": False,
-    },
-    {
-        "sort_order": 8,
-        "title": "Pay setup fee",
-        "description": "Setup fee is marked as paid.",
-        "required": True,
-        "approval_required": True,
-    },
-    {
-        "sort_order": 9,
-        "title": "Set up recurring membership payment",
-        "description": "Recurring membership payment is set up.",
-        "required": True,
-        "approval_required": True,
-    },
-    {
-        "sort_order": 10,
-        "title": "Attend welcome call",
-        "description": "Agent attends the welcome call.",
-        "required": True,
-        "approval_required": True,
-    },
-    {
-        "sort_order": 11,
-        "title": "Attend compliance call",
-        "description": "Agent attends the compliance call.",
-        "required": True,
-        "approval_required": True,
-    },
-    {
-        "sort_order": 12,
-        "title": "Complete compliance training",
-        "description": "Agent completes mandatory compliance training.",
-        "required": True,
-        "approval_required": True,
-    },
-    {
-        "sort_order": 13,
-        "title": "Complete CRM training",
-        "description": "Agent completes CRM system training.",
-        "required": True,
-        "approval_required": True,
-    },
-    {
-        "sort_order": 14,
-        "title": "Complete supplier training",
-        "description": "Agent completes supplier training.",
-        "required": True,
-        "approval_required": True,
-    },
-    {
-        "sort_order": 15,
-        "title": "Accept social media and advertising policy",
-        "description": "Agent accepts the social media and advertising policy.",
         "required": True,
         "approval_required": False,
     },

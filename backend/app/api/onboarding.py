@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.api.agents import check_agent_access, get_agent_or_404, is_admin_user
 from app.api.deps import get_current_active_user
-from app.core.onboarding_statuses import DEFAULT_ONBOARDING_STATUS
+from app.core.onboarding_statuses import DEFAULT_ONBOARDING_STATUS, REMOVED_DEFAULT_ONBOARDING_STEP_TITLES
 from app.db.session import get_db
 from app.models.agent_profile import AgentProfile
 from app.models.onboarding import AgentOnboardingProgress, OnboardingStep
@@ -25,6 +25,10 @@ from app.services.organizations import can_manage_all_organizations
 
 
 router = APIRouter(tags=["Onboarding"])
+
+
+def visible_onboarding_steps_query():
+    return select(OnboardingStep).where(~OnboardingStep.title.in_(REMOVED_DEFAULT_ONBOARDING_STEP_TITLES))
 
 
 def get_step_or_404(db: Session, step_id: int) -> OnboardingStep:
@@ -52,7 +56,7 @@ def get_progress_or_404(db: Session, progress_id: int) -> AgentOnboardingProgres
 
 
 def ensure_agent_onboarding_progress(db: Session, agent_profile: AgentProfile) -> None:
-    steps = list(db.scalars(select(OnboardingStep).order_by(OnboardingStep.sort_order)))
+    steps = list(db.scalars(visible_onboarding_steps_query().order_by(OnboardingStep.sort_order)))
     existing_step_ids = set(
         db.scalars(
             select(AgentOnboardingProgress.step_id)
@@ -77,7 +81,7 @@ def list_onboarding_steps(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> list[OnboardingStep]:
-    return list(db.scalars(select(OnboardingStep).order_by(OnboardingStep.sort_order)))
+    return list(db.scalars(visible_onboarding_steps_query().order_by(OnboardingStep.sort_order)))
 
 
 @router.post("/onboarding/steps", response_model=OnboardingStepRead, status_code=status.HTTP_201_CREATED)
@@ -164,7 +168,8 @@ def list_admin_onboarding_summary(
 
     agents = list(db.scalars(agent_query))
     agent_ids = [agent.id for agent in agents]
-    total_steps = db.scalar(select(func.count(OnboardingStep.id))) or 0
+    visible_step_ids = list(db.scalars(select(OnboardingStep.id).where(~OnboardingStep.title.in_(REMOVED_DEFAULT_ONBOARDING_STEP_TITLES))))
+    total_steps = len(visible_step_ids)
     counts_by_agent: dict[int, dict[str, int]] = {
         agent.id: {"complete_steps": 0, "awaiting_review": 0}
         for agent in agents
@@ -178,6 +183,7 @@ def list_admin_onboarding_summary(
                 func.count(AgentOnboardingProgress.id),
             )
             .where(AgentOnboardingProgress.agent_id.in_(agent_ids))
+            .where(AgentOnboardingProgress.step_id.in_(visible_step_ids))
             .group_by(AgentOnboardingProgress.agent_id, AgentOnboardingProgress.completion_status)
         )
         for agent_id, completion_status, count in rows:
@@ -218,6 +224,7 @@ def list_agent_onboarding(
             .options(selectinload(AgentOnboardingProgress.step))
             .where(AgentOnboardingProgress.agent_id == agent_profile.id)
             .join(OnboardingStep)
+            .where(~OnboardingStep.title.in_(REMOVED_DEFAULT_ONBOARDING_STEP_TITLES))
             .order_by(OnboardingStep.sort_order)
         )
     )
