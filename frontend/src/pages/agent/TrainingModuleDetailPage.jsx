@@ -233,7 +233,6 @@ function TrainingMediaCard({ data }) {
             <iframe
               title={`${data.title} PDF`}
               src={buildProtectedPdfViewUrl(data.pdf_url)}
-              sandbox="allow-same-origin allow-scripts"
               className="h-[520px] w-full rounded-lg border border-slate-200 bg-white"
             />
             <p className="mt-2 text-xs text-slate-500">
