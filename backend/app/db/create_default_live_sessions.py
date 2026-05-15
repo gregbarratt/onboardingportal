@@ -3,11 +3,15 @@ from __future__ import annotations
 from dataclasses import dataclass
 from datetime import date, time, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.db.session import SessionLocal
 from app.models.live_training import LiveTrainingSession
+
+
+DEFAULT_LIVE_CALL_HOST = "Nikki Bishop"
+LEGACY_LIVE_CALL_HOSTS = {"Training Manager", "Compliance Manager", "Admin"}
 
 
 @dataclass(frozen=True)
@@ -38,7 +42,7 @@ DEFAULT_ONBOARDING_LIVE_SESSIONS = (
         session_number=1,
         start_time=time(10, 0),
         end_time=time(11, 30),
-        trainer_host="Training Manager",
+        trainer_host=DEFAULT_LIVE_CALL_HOST,
     ),
     DefaultLiveSession(
         title="Week 1 - Session 2: Smart Quote, Service Standards and Disney",
@@ -51,7 +55,7 @@ DEFAULT_ONBOARDING_LIVE_SESSIONS = (
         session_number=2,
         start_time=time(14, 0),
         end_time=time(15, 30),
-        trainer_host="Training Manager",
+        trainer_host=DEFAULT_LIVE_CALL_HOST,
     ),
     DefaultLiveSession(
         title="Week 2 - Session 1: ATOL, GDPR, Hub and Business Basics",
@@ -63,7 +67,7 @@ DEFAULT_ONBOARDING_LIVE_SESSIONS = (
         session_number=1,
         start_time=time(10, 0),
         end_time=time(11, 30),
-        trainer_host="Compliance Manager",
+        trainer_host=DEFAULT_LIVE_CALL_HOST,
         follow_up_quiz_required=True,
     ),
     DefaultLiveSession(
@@ -76,7 +80,7 @@ DEFAULT_ONBOARDING_LIVE_SESSIONS = (
         session_number=2,
         start_time=time(14, 0),
         end_time=time(15, 30),
-        trainer_host="Training Manager",
+        trainer_host=DEFAULT_LIVE_CALL_HOST,
     ),
     DefaultLiveSession(
         title="Week 3 - Session 1: Agent Behaviour and Client Growth",
@@ -89,7 +93,7 @@ DEFAULT_ONBOARDING_LIVE_SESSIONS = (
         session_number=1,
         start_time=time(10, 0),
         end_time=time(11, 30),
-        trainer_host="Training Manager",
+        trainer_host=DEFAULT_LIVE_CALL_HOST,
     ),
     DefaultLiveSession(
         title="Week 3 - Session 2: Repackaging and Cruise Introduction",
@@ -99,7 +103,7 @@ DEFAULT_ONBOARDING_LIVE_SESSIONS = (
         session_number=2,
         start_time=time(14, 0),
         end_time=time(15, 30),
-        trainer_host="Training Manager",
+        trainer_host=DEFAULT_LIVE_CALL_HOST,
     ),
     DefaultLiveSession(
         title="Week 4 - Session 1: Test, OTC Facebook, Clinton and Logins",
@@ -109,7 +113,7 @@ DEFAULT_ONBOARDING_LIVE_SESSIONS = (
         session_number=1,
         start_time=time(10, 0),
         end_time=time(11, 30),
-        trainer_host="Admin",
+        trainer_host=DEFAULT_LIVE_CALL_HOST,
         follow_up_quiz_required=True,
     ),
     DefaultLiveSession(
@@ -120,7 +124,7 @@ DEFAULT_ONBOARDING_LIVE_SESSIONS = (
         session_number=2,
         start_time=time(14, 0),
         end_time=time(15, 30),
-        trainer_host="Admin",
+        trainer_host=DEFAULT_LIVE_CALL_HOST,
         follow_up_quiz_required=True,
     ),
 )
@@ -139,12 +143,24 @@ def session_date_for(spec: DefaultLiveSession, start_date: date | None = None) -
     return week_start + timedelta(days=3)
 
 
+def session_identity_prefix(title: str) -> str:
+    return title.split(":", 1)[0].strip()
+
+
 def ensure_default_live_sessions(db: Session) -> dict[str, int]:
     created = 0
     updated = 0
 
     for spec in DEFAULT_ONBOARDING_LIVE_SESSIONS:
         live_session = db.scalar(select(LiveTrainingSession).where(LiveTrainingSession.title == spec.title))
+        if live_session is None:
+            prefix = session_identity_prefix(spec.title).lower()
+            live_session = db.scalar(
+                select(LiveTrainingSession)
+                .where(func.lower(LiveTrainingSession.title).like(f"{prefix}%"))
+                .order_by(LiveTrainingSession.id)
+                .limit(1)
+            )
 
         if live_session is None:
             live_session = LiveTrainingSession(
@@ -164,18 +180,24 @@ def ensure_default_live_sessions(db: Session) -> dict[str, int]:
             created += 1
             continue
 
-        live_session.session_type = spec.session_type
-        live_session.description = spec.description
-        live_session.attendance_required = spec.attendance_required
-        live_session.follow_up_quiz_required = spec.follow_up_quiz_required
-        live_session.certificate_issued = spec.certificate_issued
-        live_session.notes = spec.notes
+        if not live_session.session_type:
+            live_session.session_type = spec.session_type
+        if not live_session.description:
+            live_session.description = spec.description
+        if live_session.attendance_required is None:
+            live_session.attendance_required = spec.attendance_required
+        if live_session.follow_up_quiz_required is None:
+            live_session.follow_up_quiz_required = spec.follow_up_quiz_required
+        if live_session.certificate_issued is None:
+            live_session.certificate_issued = spec.certificate_issued
+        if not live_session.notes:
+            live_session.notes = spec.notes
 
         if live_session.start_time is None:
             live_session.start_time = spec.start_time
         if live_session.end_time is None:
             live_session.end_time = spec.end_time
-        if not live_session.trainer_host:
+        if not live_session.trainer_host or live_session.trainer_host in LEGACY_LIVE_CALL_HOSTS:
             live_session.trainer_host = spec.trainer_host
 
         updated += 1

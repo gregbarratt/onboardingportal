@@ -713,10 +713,10 @@ def ensure_demo_policy_acceptances(
 def ensure_demo_live_sessions(db: Session) -> dict[str, LiveTrainingSession]:
     today = date.today()
     session_specs = {
-        "welcome": ("Demo Welcome Call", "Welcome Call", today - timedelta(days=20), time(10, 0), time(11, 0), "Training Manager"),
-        "compliance": ("Demo Compliance Call", "Compliance Call", today - timedelta(days=14), time(10, 0), time(11, 30), "Compliance Manager"),
-        "systems": ("Demo CRM Systems Training", "Systems Training Call", today - timedelta(days=7), time(14, 0), time(15, 0), "Training Manager"),
-        "final": ("Demo Final Sign-Off Call", "Final Sign-Off Call", today + timedelta(days=2), time(11, 0), time(11, 30), "Admin"),
+        "welcome": ("Demo Welcome Call", "Welcome Call", today - timedelta(days=20), time(10, 0), time(11, 0), "Nikki Bishop"),
+        "compliance": ("Demo Compliance Call", "Compliance Call", today - timedelta(days=14), time(10, 0), time(11, 30), "Nikki Bishop"),
+        "systems": ("Demo CRM Systems Training", "Systems Training Call", today - timedelta(days=7), time(14, 0), time(15, 0), "Nikki Bishop"),
+        "final": ("Demo Final Sign-Off Call", "Final Sign-Off Call", today + timedelta(days=2), time(11, 0), time(11, 30), "Nikki Bishop"),
     }
     sessions: dict[str, LiveTrainingSession] = {}
     for key, (title, session_type, session_date, start_time, end_time, host) in session_specs.items():

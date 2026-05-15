@@ -6,7 +6,6 @@ import { Card, DataTable, ErrorBanner, FormField, LoadingState, PrimaryButton, S
 import { apiClient } from "../../api/client.js";
 import { useAuth } from "../../context/AuthContext.jsx";
 import { getFriendlyError, useApiResource } from "../../hooks/useAgentPortalData.js";
-import { formatDate } from "../../utils/formatters.js";
 import { liveSessionTypes } from "./adminConstants.js";
 import AdminPageShell from "./AdminPageShell.jsx";
 
@@ -14,10 +13,9 @@ const blankSession = {
   title: "",
   session_type: "Welcome Call",
   description: "",
-  date: "",
   start_time: "",
   end_time: "",
-  trainer_host: "",
+  trainer_host: "Nikki Bishop",
   meeting_link: "",
   recording_link: "",
   attendance_required: true,
@@ -69,19 +67,19 @@ export default function AdminLiveSessionsPage() {
 
   if (sessions.loading) {
     return (
-      <AdminPageShell title="Live Training Session List" description="Loading live sessions.">
+    <AdminPageShell title="Live Training Session List" description="Loading live sessions.">
         <LoadingState message="Loading live sessions..." />
       </AdminPageShell>
     );
   }
 
   return (
-    <AdminPageShell title="Live Training Session List" description="Create live calls and open sessions to manage attendance.">
+    <AdminPageShell title="Live Training and Call Check List" description="Create live calls, edit call details, and allocate agents to attendance records.">
       <div className="space-y-6">
         <ErrorBanner message={sessions.error || error} />
         {message ? <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-700">{message}</div> : null}
 
-        <Card title="Create Live Session">
+        <Card title="Create Live Training Call">
           <form onSubmit={createSession} className="grid gap-4 md:grid-cols-3">
             <FormField label="Title">
               <TextInput required value={form.title} onChange={(event) => update("title", event.target.value)} />
@@ -90,9 +88,6 @@ export default function AdminLiveSessionsPage() {
               <SelectInput value={form.session_type} onChange={(event) => update("session_type", event.target.value)}>
                 {liveSessionTypes.map((type) => <option key={type} value={type}>{type}</option>)}
               </SelectInput>
-            </FormField>
-            <FormField label="Date">
-              <TextInput required type="date" value={form.date} onChange={(event) => update("date", event.target.value)} />
             </FormField>
             <FormField label="Start time">
               <TextInput type="time" value={form.start_time} onChange={(event) => update("start_time", event.target.value)} />
@@ -123,14 +118,13 @@ export default function AdminLiveSessionsPage() {
           </form>
         </Card>
 
-        <Card title="Live Sessions">
+        <Card title="Live Training Calls">
           <DataTable
             rows={sessions.data || []}
             emptyMessage="No live sessions have been created yet."
             columns={[
               { key: "title", label: "Session", render: (row) => <Link className="font-semibold text-sky-700 hover:text-sky-900" to={`/admin/live-sessions/${row.id}`}>{row.title}</Link> },
               { key: "session_type", label: "Type" },
-              { key: "date", label: "Date", render: (row) => formatDate(row.date) },
               { key: "trainer_host", label: "Host" },
               { key: "attendance_required", label: "Required", render: (row) => <StatusBadge status={row.attendance_required ? "Required" : "Optional"} /> },
               { key: "open", label: "Open", render: (row) => <Link className="font-semibold text-sky-700 hover:text-sky-900" to={`/admin/live-sessions/${row.id}`}>Manage</Link> },

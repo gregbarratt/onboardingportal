@@ -20,7 +20,7 @@ class LiveTrainingSessionCreate(BaseModel):
     title: str = Field(min_length=1, max_length=255)
     session_type: str
     description: str | None = None
-    date: date_type
+    date: date_type | None = None
     start_time: time_type | None = None
     end_time: time_type | None = None
     trainer_host: str | None = Field(default=None, max_length=255)
@@ -175,5 +175,37 @@ class AttendanceLogRead(BaseModel):
     created_at: datetime
     updated_at: datetime
     session: LiveTrainingSessionRead
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class LiveSessionAttendanceAgentRead(BaseModel):
+    id: int
+    agent_id: str
+    first_name: str
+    last_name: str
+    email: str
+    status: str
+
+    model_config = ConfigDict(from_attributes=True)
+
+
+class LiveSessionAttendanceRead(BaseModel):
+    id: int
+    session_id: int
+    agent_id: int
+    attendance_status: str
+    join_time: time_type | None = None
+    leave_time: time_type | None = None
+    duration_attended: int | None = None
+    marked_by: int | None = None
+    marked_date: date_type | None = None
+    notes: str | None = None
+    follow_up_required: bool
+    watched_recording: bool
+    recording_completed_date: date_type | None = None
+    created_at: datetime
+    updated_at: datetime
+    agent: LiveSessionAttendanceAgentRead
 
     model_config = ConfigDict(from_attributes=True)

@@ -17,10 +17,12 @@ from app.schemas.live_training import (
     AttendanceLogCreate,
     AttendanceLogRead,
     LiveSessionAssignRequest,
+    LiveSessionAttendanceRead,
     LiveTrainingSessionCreate,
     LiveTrainingSessionRead,
     LiveTrainingSessionUpdate,
 )
+from app.services.organizations import can_manage_all_organizations
 
 
 router = APIRouter(tags=["Live Calls and Attendance"])
@@ -115,7 +117,9 @@ def create_live_session(
     require_admin_user(current_user)
     check_related_training_module(db, request.related_training_module_id)
 
-    live_session = LiveTrainingSession(**request.model_dump())
+    session_data = request.model_dump()
+    session_data["date"] = session_data["date"] or date.today()
+    live_session = LiveTrainingSession(**session_data)
     db.add(live_session)
     db.commit()
     db.refresh(live_session)
@@ -145,6 +149,28 @@ def get_live_session(
     current_user: User = Depends(get_current_active_user),
 ) -> LiveTrainingSession:
     return get_live_session_or_404(db, session_id)
+
+
+@router.get("/live-sessions/{session_id}/attendance", response_model=list[LiveSessionAttendanceRead])
+def list_live_session_attendance(
+    session_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> list[AttendanceLog]:
+    require_admin_user(current_user)
+    live_session = get_live_session_or_404(db, session_id)
+    query = (
+        select(AttendanceLog)
+        .options(selectinload(AttendanceLog.agent))
+        .where(AttendanceLog.session_id == live_session.id)
+        .join(AgentProfile, AttendanceLog.agent_id == AgentProfile.id)
+        .order_by(AgentProfile.last_name, AgentProfile.first_name, AttendanceLog.id)
+    )
+    if not can_manage_all_organizations(current_user):
+        if current_user.organization_id is None:
+            return []
+        query = query.where(AgentProfile.organization_id == current_user.organization_id)
+    return list(db.scalars(query))
 
 
 @router.put("/live-sessions/{session_id}", response_model=LiveTrainingSessionRead)

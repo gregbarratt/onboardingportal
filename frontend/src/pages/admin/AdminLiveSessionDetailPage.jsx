@@ -7,7 +7,6 @@ import { apiClient } from "../../api/client.js";
 import { useAuth } from "../../context/AuthContext.jsx";
 import { buildAgentName, useAgents } from "../../hooks/useAdminData.js";
 import { getFriendlyError, useApiResource } from "../../hooks/useAgentPortalData.js";
-import { formatDate } from "../../utils/formatters.js";
 import { attendanceStatuses, liveSessionTypes } from "./adminConstants.js";
 import AdminPageShell, { AdminLinkButton } from "./AdminPageShell.jsx";
 
@@ -17,8 +16,16 @@ export default function AdminLiveSessionDetailPage() {
   const session = useApiResource(`/live-sessions/${sessionId}`, {
     fallbackError: "We could not load this live session.",
   });
+  const attendance = useApiResource(`/live-sessions/${sessionId}/attendance`, {
+    initialData: [],
+    fallbackError: "We could not load allocated agents for this call.",
+  });
   const agents = useAgents();
   const [form, setForm] = useState({});
+  const [allocationForm, setAllocationForm] = useState({
+    agent_id: "",
+    notes: "",
+  });
   const [attendanceForm, setAttendanceForm] = useState({
     agent_id: "",
     attendance_status: "Attended",
@@ -38,10 +45,9 @@ export default function AdminLiveSessionDetailPage() {
         title: session.data.title || "",
         session_type: session.data.session_type || "Welcome Call",
         description: session.data.description || "",
-        date: session.data.date || "",
         start_time: session.data.start_time || "",
         end_time: session.data.end_time || "",
-        trainer_host: session.data.trainer_host || "",
+        trainer_host: session.data.trainer_host || "Nikki Bishop",
         meeting_link: session.data.meeting_link || "",
         recording_link: session.data.recording_link || "",
         attendance_required: Boolean(session.data.attendance_required),
@@ -58,6 +64,10 @@ export default function AdminLiveSessionDetailPage() {
 
   function updateAttendance(field, value) {
     setAttendanceForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function updateAllocation(field, value) {
+    setAllocationForm((current) => ({ ...current, [field]: value }));
   }
 
   async function saveSession(event) {
@@ -85,6 +95,31 @@ export default function AdminLiveSessionDetailPage() {
     }
   }
 
+  async function allocateAgent(event) {
+    event.preventDefault();
+    setMarking(true);
+    setError("");
+    setMessage("");
+
+    try {
+      await apiClient.post(
+        `/live-sessions/${sessionId}/assign`,
+        {
+          agent_id: Number(allocationForm.agent_id),
+          notes: allocationForm.notes || null,
+        },
+        token,
+      );
+      setAllocationForm({ agent_id: "", notes: "" });
+      await attendance.reload();
+      setMessage("Agent allocated to this call.");
+    } catch (err) {
+      setError(getFriendlyError(err, "We could not allocate this agent."));
+    } finally {
+      setMarking(false);
+    }
+  }
+
   async function markAttendance(event) {
     event.preventDefault();
     setMarking(true);
@@ -103,6 +138,7 @@ export default function AdminLiveSessionDetailPage() {
         token,
       );
       setAttendanceForm({ agent_id: "", attendance_status: "Attended", marked_date: "", duration_attended: "", notes: "", watched_recording: false });
+      await attendance.reload();
       setMessage("Attendance marked.");
     } catch (err) {
       setError(getFriendlyError(err, "We could not mark attendance."));
@@ -111,9 +147,9 @@ export default function AdminLiveSessionDetailPage() {
     }
   }
 
-  if (session.loading || agents.loading) {
+  if (session.loading || agents.loading || attendance.loading) {
     return (
-      <AdminPageShell title="Live Training Session Detail" description="Loading live session.">
+      <AdminPageShell title="Live Training Call Detail" description="Loading live session.">
         <LoadingState message="Loading session detail..." />
       </AdminPageShell>
     );
@@ -121,12 +157,12 @@ export default function AdminLiveSessionDetailPage() {
 
   return (
     <AdminPageShell
-      title="Live Training Session Detail"
-      description="Edit a live call and mark attendance for agents."
+      title="Live Training Call Detail"
+      description="Edit a live call, allocate agents, and mark attendance."
       actions={<AdminLinkButton to="/admin/live-sessions">All live sessions</AdminLinkButton>}
     >
       <div className="space-y-6">
-        <ErrorBanner message={session.error || agents.error || error} />
+        <ErrorBanner message={session.error || agents.error || attendance.error || error} />
         {message ? <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-700">{message}</div> : null}
 
         <form onSubmit={saveSession}>
@@ -139,9 +175,6 @@ export default function AdminLiveSessionDetailPage() {
                 <SelectInput value={form.session_type || "Welcome Call"} onChange={(event) => update("session_type", event.target.value)}>
                   {liveSessionTypes.map((type) => <option key={type} value={type}>{type}</option>)}
                 </SelectInput>
-              </FormField>
-              <FormField label="Date">
-                <TextInput type="date" value={form.date || ""} onChange={(event) => update("date", event.target.value)} />
               </FormField>
               <FormField label="Start time">
                 <TextInput type="time" value={form.start_time || ""} onChange={(event) => update("start_time", event.target.value)} />
@@ -173,8 +206,29 @@ export default function AdminLiveSessionDetailPage() {
           </Card>
         </form>
 
+        <form onSubmit={allocateAgent}>
+          <Card title="Allocate Agent to This Call" description="This adds the call to the agent's live training checklist as invited.">
+            <div className="grid gap-4 md:grid-cols-3">
+              <FormField label="Agent">
+                <SelectInput required value={allocationForm.agent_id} onChange={(event) => updateAllocation("agent_id", event.target.value)}>
+                  <option value="">Choose agent</option>
+                  {(agents.data || []).map((agent) => <option key={agent.id} value={agent.id}>{buildAgentName(agent)}</option>)}
+                </SelectInput>
+              </FormField>
+              <div className="md:col-span-2">
+                <FormField label="Notes">
+                  <TextInput value={allocationForm.notes} onChange={(event) => updateAllocation("notes", event.target.value)} />
+                </FormField>
+              </div>
+            </div>
+            <div className="mt-4">
+              <PrimaryButton type="submit" icon={UserPlus} disabled={marking}>{marking ? "Allocating..." : "Allocate agent"}</PrimaryButton>
+            </div>
+          </Card>
+        </form>
+
         <form onSubmit={markAttendance}>
-          <Card title="Mark Attendance">
+          <Card title="Mark Attendance" description="Once an agent has attended, mark them here and their live call checklist will show as attended.">
             <div className="grid gap-4 md:grid-cols-3">
               <FormField label="Agent">
                 <SelectInput required value={attendanceForm.agent_id} onChange={(event) => updateAttendance("agent_id", event.target.value)}>
@@ -208,13 +262,27 @@ export default function AdminLiveSessionDetailPage() {
           </Card>
         </form>
 
+        <Card title="Allocated Agents">
+          <DataTable
+            rows={attendance.data || []}
+            emptyMessage="No agents have been allocated to this call yet."
+            columns={[
+              { key: "agent", label: "Agent", render: (row) => buildAgentName(row.agent) },
+              { key: "agent_id", label: "Agent ID", render: (row) => row.agent?.agent_id || "Not set" },
+              { key: "attendance_status", label: "Status", render: (row) => <StatusBadge status={row.attendance_status} /> },
+              { key: "watched_recording", label: "Recording", render: (row) => (row.watched_recording ? "Watched" : "Not marked") },
+              { key: "notes", label: "Notes" },
+            ]}
+          />
+        </Card>
+
         <Card title="Session Summary">
           <DataTable
             rows={session.data ? [session.data] : []}
             columns={[
               { key: "title", label: "Title" },
               { key: "session_type", label: "Type" },
-              { key: "date", label: "Date", render: (row) => formatDate(row.date) },
+              { key: "trainer_host", label: "Host" },
               { key: "attendance_required", label: "Attendance", render: (row) => <StatusBadge status={row.attendance_required ? "Required" : "Optional"} /> },
             ]}
           />
