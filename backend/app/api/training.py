@@ -5,7 +5,7 @@ from datetime import date, datetime, timezone
 from pathlib import Path
 from uuid import uuid4
 
-from fastapi import APIRouter, Depends, HTTPException, Request, status
+from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
@@ -58,6 +58,16 @@ ALLOWED_PDF_EXTENSIONS = {".pdf"}
 SAFE_FILENAME_PATTERN = re.compile(r"[^A-Za-z0-9._-]+")
 
 
+def clean_material_type(material_type: str) -> str:
+    cleaned = material_type.strip()
+    if cleaned not in {"Video", "PDF"}:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="Training material must be a video or PDF.",
+        )
+    return cleaned
+
+
 def get_category_or_404(db: Session, category_id: int) -> TrainingCategory:
     category = db.get(TrainingCategory, category_id)
     if category is None:
@@ -100,19 +110,6 @@ def save_training_material_file(
     training_module_id: int,
     upload_request: TrainingMaterialUploadRequest,
 ) -> tuple[str, str]:
-    original_file_name = clean_uploaded_filename(upload_request.file_name)
-    file_extension = Path(original_file_name).suffix.lower()
-    allowed_extensions = (
-        ALLOWED_VIDEO_EXTENSIONS if upload_request.material_type == "Video" else ALLOWED_PDF_EXTENSIONS
-    )
-
-    if file_extension not in allowed_extensions:
-        allowed = ", ".join(sorted(allowed_extensions))
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Please upload one of these file types: {allowed}.",
-        )
-
     raw_base64_content = upload_request.file_content_base64.strip()
     if raw_base64_content.startswith("data:") and "," in raw_base64_content:
         raw_base64_content = raw_base64_content.split(",", 1)[1]
@@ -124,6 +121,34 @@ def save_training_material_file(
             status_code=status.HTTP_400_BAD_REQUEST,
             detail="The uploaded file could not be read.",
         ) from exc
+
+    return save_training_material_file_bytes(
+        training_module_id,
+        upload_request.material_type,
+        upload_request.file_name,
+        file_bytes,
+    )
+
+
+def save_training_material_file_bytes(
+    training_module_id: int,
+    material_type: str,
+    file_name: str | None,
+    file_bytes: bytes,
+) -> tuple[str, str]:
+    material_type = clean_material_type(material_type)
+    original_file_name = clean_uploaded_filename(file_name)
+    file_extension = Path(original_file_name).suffix.lower()
+    allowed_extensions = (
+        ALLOWED_VIDEO_EXTENSIONS if material_type == "Video" else ALLOWED_PDF_EXTENSIONS
+    )
+
+    if file_extension not in allowed_extensions:
+        allowed = ", ".join(sorted(allowed_extensions))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Please upload one of these file types: {allowed}.",
+        )
 
     if not file_bytes:
         raise HTTPException(
@@ -427,19 +452,27 @@ def get_training_module(
 
 
 @router.post("/training/modules/{module_id}/materials", response_model=TrainingModuleRead)
-def upload_training_material(
+async def upload_training_material(
     module_id: int,
-    upload_request: TrainingMaterialUploadRequest,
     http_request: Request,
+    material_type: str = Form(...),
+    uploaded_file: UploadFile = File(..., alias="file"),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> TrainingModule:
     require_admin_user(current_user)
     training_module = get_training_module_or_404(db, module_id)
-    _file_name, public_path = save_training_material_file(module_id, upload_request)
+    file_bytes = await uploaded_file.read()
+    material_type = clean_material_type(material_type)
+    _file_name, public_path = save_training_material_file_bytes(
+        module_id,
+        material_type,
+        uploaded_file.filename,
+        file_bytes,
+    )
     file_url = build_public_file_url(http_request, public_path)
 
-    if upload_request.material_type == "Video":
+    if material_type == "Video":
         training_module.video_url = file_url
     else:
         training_module.pdf_url = file_url
@@ -447,7 +480,7 @@ def upload_training_material(
     if training_module.video_url and training_module.pdf_url:
         training_module.content_type = "Mixed"
     else:
-        training_module.content_type = upload_request.material_type
+        training_module.content_type = material_type
 
     db.commit()
     db.refresh(training_module)

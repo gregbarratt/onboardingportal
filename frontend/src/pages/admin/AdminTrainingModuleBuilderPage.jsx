@@ -238,16 +238,10 @@ export default function AdminTrainingModuleBuilderPage() {
     setError("");
     setMessage("");
     try {
-      const fileContentBase64 = await readFileAsBase64(file);
-      const updatedModule = await apiClient.post(
-        `/training/modules/${moduleId}/materials`,
-        {
-          material_type: materialType,
-          file_name: file.name.trim(),
-          file_content_base64: fileContentBase64,
-        },
-        token,
-      );
+      const uploadBody = new FormData();
+      uploadBody.append("material_type", materialType);
+      uploadBody.append("file", file, file.name.trim());
+      const updatedModule = await apiClient.postForm(`/training/modules/${moduleId}/materials`, uploadBody, token);
       setForm((current) => ({
         ...current,
         content_type: updatedModule.content_type || current.content_type,
@@ -568,21 +562,4 @@ function Checkbox({ label, checked, onChange }) {
       {label}
     </label>
   );
-}
-
-function readFileAsBase64(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = () => {
-      const result = String(reader.result || "");
-      const fileContentBase64 = result.split(",", 2)[1] || result;
-      if (!fileContentBase64.trim()) {
-        reject(new Error("The selected file could not be read. Please choose it again."));
-        return;
-      }
-      resolve(fileContentBase64);
-    };
-    reader.onerror = () => reject(new Error("The file could not be read."));
-    reader.readAsDataURL(file);
-  });
 }

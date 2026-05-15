@@ -3,6 +3,7 @@ fastapi
 httpx
 pydantic-settings
 psycopg[binary]
+python-multipart
 python-dotenv
 sqlalchemy
 stripe
