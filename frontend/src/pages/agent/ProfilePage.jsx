@@ -15,6 +15,12 @@ import {
 import { useAuth } from "../../context/AuthContext.jsx";
 import { getFriendlyError, saveAgentProfile, useAgentProfile } from "../../hooks/useAgentPortalData.js";
 import { formatDateTime } from "../../utils/formatters.js";
+import {
+  getMissingProfileFields,
+  normaliseProfileValues,
+  profileFieldLabels,
+  profileWithDefaults,
+} from "../../utils/profileCompletion.js";
 
 const blankProfile = {
   first_name: "",
@@ -23,7 +29,7 @@ const blankProfile = {
   personal_email: "",
   company_email: "",
   phone: "",
-  business_name: "",
+  business_name: "N/A",
   joining_date: "",
   address: "",
   postcode: "",
@@ -43,24 +49,9 @@ export default function ProfilePage() {
 
   useEffect(() => {
     if (profile) {
-      setValues({
-        first_name: profile.first_name || "",
-        last_name: profile.last_name || "",
-        email: profile.email || "",
-        personal_email: profile.personal_email || "",
-        company_email: profile.company_email || "",
-        phone: profile.phone || "",
-        business_name: profile.business_name || "",
-        joining_date: profile.joining_date || "",
-        address: profile.address || "",
-        postcode: profile.postcode || "",
-        commission_bank_name: profile.commission_bank_name || "",
-        commission_account_name: profile.commission_account_name || "",
-        commission_sort_code: profile.commission_sort_code || "",
-        commission_account_number: profile.commission_account_number || "",
-      });
+      setValues(profileWithDefaults(profile, user));
     } else if (user?.email) {
-      setValues((current) => ({ ...current, email: user.email }));
+      setValues((current) => profileWithDefaults(current, user));
     }
   }, [profile, user]);
 
@@ -75,7 +66,15 @@ export default function ProfilePage() {
     setSaveMessage("");
 
     try {
-      const savedProfile = await saveAgentProfile({ token, profile, values });
+      const normalisedValues = normaliseProfileValues(values);
+      const missingFields = getMissingProfileFields(normalisedValues);
+      if (missingFields.length) {
+        setSaveError(`Please complete: ${missingFields.map((field) => profileFieldLabels[field]).join(", ")}.`);
+        setSaving(false);
+        return;
+      }
+
+      const savedProfile = await saveAgentProfile({ token, profile, values: normalisedValues });
       setProfile(savedProfile);
       await refreshProfile();
       setSaveMessage("Profile saved.");
@@ -104,6 +103,12 @@ export default function ProfilePage() {
       />
 
       <ErrorBanner message={error || saveError} />
+
+      {profile && getMissingProfileFields(profile).length ? (
+        <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm font-medium text-amber-800">
+          Please complete every field on this page before continuing with the rest of the portal.
+        </div>
+      ) : null}
 
       {saveMessage ? (
         <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-700">
@@ -139,52 +144,53 @@ export default function ProfilePage() {
       <form onSubmit={handleSubmit} className="space-y-6">
         <Card title={profile ? "Edit Profile" : "Create Profile"} description="These details help the admin team finish your onboarding checks.">
           <div className="grid gap-4 md:grid-cols-2">
-            <FormField label="First name">
+            <FormField label="First name *">
               <TextInput required value={values.first_name} onChange={(event) => updateValue("first_name", event.target.value)} />
             </FormField>
-            <FormField label="Last name">
+            <FormField label="Last name *">
               <TextInput required value={values.last_name} onChange={(event) => updateValue("last_name", event.target.value)} />
             </FormField>
-            <FormField label="Email address">
+            <FormField label="Email address *">
               <TextInput required type="email" value={values.email} onChange={(event) => updateValue("email", event.target.value)} />
             </FormField>
-            <FormField label="Personal email">
-              <TextInput type="email" value={values.personal_email} onChange={(event) => updateValue("personal_email", event.target.value)} />
+            <FormField label="Personal email *">
+              <TextInput required type="email" value={values.personal_email} onChange={(event) => updateValue("personal_email", event.target.value)} />
             </FormField>
-            <FormField label="One Travel Club email">
-              <TextInput type="email" value={values.company_email} onChange={(event) => updateValue("company_email", event.target.value)} />
+            <FormField label="One Travel Club email *">
+              <TextInput required type="email" value={values.company_email} onChange={(event) => updateValue("company_email", event.target.value)} />
             </FormField>
-            <FormField label="Phone number">
-              <TextInput value={values.phone} onChange={(event) => updateValue("phone", event.target.value)} />
+            <FormField label="Phone number *">
+              <TextInput required value={values.phone} onChange={(event) => updateValue("phone", event.target.value)} />
             </FormField>
-            <FormField label="Business name">
-              <TextInput value={values.business_name} onChange={(event) => updateValue("business_name", event.target.value)} />
+            <FormField label="Business name *" help="This starts as N/A if the agent does not trade under a business name. It can be changed.">
+              <TextInput required value={values.business_name} onChange={(event) => updateValue("business_name", event.target.value)} />
             </FormField>
-            <FormField label="Joining date">
-              <TextInput type="date" value={values.joining_date || ""} onChange={(event) => updateValue("joining_date", event.target.value)} />
+            <FormField label="Joining date *">
+              <TextInput required type="date" value={values.joining_date || ""} onChange={(event) => updateValue("joining_date", event.target.value)} />
             </FormField>
-            <FormField label="Address">
-              <TextArea value={values.address} onChange={(event) => updateValue("address", event.target.value)} />
+            <FormField label="Address *">
+              <TextArea required value={values.address} onChange={(event) => updateValue("address", event.target.value)} />
             </FormField>
-            <FormField label="Postcode">
-              <TextInput value={values.postcode} onChange={(event) => updateValue("postcode", event.target.value)} />
+            <FormField label="Postcode *">
+              <TextInput required value={values.postcode} onChange={(event) => updateValue("postcode", event.target.value)} />
             </FormField>
           </div>
         </Card>
 
         <Card title="Commission Bank Details" description="These details are for recording where commission should be paid.">
           <div className="grid gap-4 md:grid-cols-2">
-            <FormField label="Bank name">
-              <TextInput value={values.commission_bank_name} onChange={(event) => updateValue("commission_bank_name", event.target.value)} />
+            <FormField label="Bank name *">
+              <TextInput required value={values.commission_bank_name} onChange={(event) => updateValue("commission_bank_name", event.target.value)} />
             </FormField>
-            <FormField label="Account name">
-              <TextInput value={values.commission_account_name} onChange={(event) => updateValue("commission_account_name", event.target.value)} />
+            <FormField label="Account name *">
+              <TextInput required value={values.commission_account_name} onChange={(event) => updateValue("commission_account_name", event.target.value)} />
             </FormField>
-            <FormField label="Sort code">
-              <TextInput value={values.commission_sort_code} onChange={(event) => updateValue("commission_sort_code", event.target.value)} />
+            <FormField label="Sort code *">
+              <TextInput required value={values.commission_sort_code} onChange={(event) => updateValue("commission_sort_code", event.target.value)} />
             </FormField>
-            <FormField label="Account number">
+            <FormField label="Account number *">
               <TextInput
+                required
                 value={values.commission_account_number}
                 onChange={(event) => updateValue("commission_account_number", event.target.value)}
               />

@@ -19,11 +19,12 @@ import {
   X,
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { Link, NavLink, Outlet } from "react-router-dom";
+import { Link, Navigate, NavLink, Outlet, useLocation } from "react-router-dom";
 
 import { apiClient } from "../api/client.js";
 import { useAuth } from "../context/AuthContext.jsx";
 import { formatDateTime } from "../utils/formatters.js";
+import { isProfileComplete } from "../utils/profileCompletion.js";
 
 const navItems = [
   { label: "Dashboard", to: "/dashboard", icon: LayoutDashboard },
@@ -148,11 +149,78 @@ export default function DashboardLayout() {
         </header>
 
         <main className="px-4 py-6 lg:px-8">
-          <Outlet />
+          <ProfileCompletionGate token={token} showAdmin={showAdmin}>
+            <Outlet />
+          </ProfileCompletionGate>
         </main>
       </div>
     </div>
   );
+}
+
+function ProfileCompletionGate({ token, showAdmin, children }) {
+  const location = useLocation();
+  const [profile, setProfile] = useState(null);
+  const [loading, setLoading] = useState(!showAdmin);
+  const [error, setError] = useState("");
+  const [checkedPath, setCheckedPath] = useState("");
+
+  useEffect(() => {
+    let active = true;
+
+    async function loadProfile() {
+      if (showAdmin || !token) {
+        setLoading(false);
+        return;
+      }
+
+      setLoading(true);
+      setError("");
+
+      try {
+        const profiles = await apiClient.get("/agents", token);
+        if (active) setProfile(profiles?.[0] || null);
+      } catch (err) {
+        if (active) setError(err?.message || "We could not check your profile.");
+      } finally {
+        if (active) {
+          setCheckedPath(location.pathname);
+          setLoading(false);
+        }
+      }
+    }
+
+    void loadProfile();
+    return () => {
+      active = false;
+    };
+  }, [location.pathname, showAdmin, token]);
+
+  if (showAdmin || location.pathname === "/profile") {
+    return children;
+  }
+
+  if (loading || checkedPath !== location.pathname) {
+    return (
+      <div className="rounded-lg border border-slate-200 bg-white p-5 text-sm font-medium text-slate-700 shadow-sm">
+        Checking your profile details...
+      </div>
+    );
+  }
+
+  if (error) {
+    return (
+      <div className="rounded-lg border border-rose-200 bg-rose-50 p-5 text-sm font-medium text-rose-700">
+        {error}
+      </div>
+    );
+  }
+
+  if (!profile || !isProfileComplete(profile)) {
+    return <Navigate to="/profile" replace state={{ from: location }} />;
+  }
+
+  return children;
 }
 
 function AlertsButton({ token }) {

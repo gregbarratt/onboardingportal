@@ -420,7 +420,7 @@ def apply_stripe_customer_details_to_agent_profile(agent_profile: AgentProfile, 
 
     metadata = customer.get("metadata") if isinstance(customer.get("metadata"), dict) else {}
     business_name = text_or_none(metadata.get("business_name") or metadata.get("company_name"))
-    if business_name and not text_or_none(agent_profile.business_name):
+    if business_name and business_name_is_missing(agent_profile.business_name):
         agent_profile.business_name = business_name
         updated_fields.append("business_name")
 
@@ -1138,6 +1138,11 @@ def text_or_none(value: object) -> str | None:
         return None
     text = str(value).strip()
     return text or None
+
+
+def business_name_is_missing(value: object) -> bool:
+    text = text_or_none(value)
+    return text is None or text.upper() == "N/A"
 
 
 def stripe_object_to_dict(value: Any) -> dict[str, Any]:

@@ -20,7 +20,18 @@ FINAL_ASSESSMENT_STEP_TITLE = "Complete final assessment"
 ADMIN_FINAL_APPROVAL_STEP_TITLE = "Admin final approval"
 
 APPROVED_AGENT_STATUSES = {"Approved to Trade", "Active Agent"}
-REQUIRED_PROFILE_FIELDS = ("first_name", "last_name", "email", "phone", "business_name", "address", "postcode")
+REQUIRED_PROFILE_FIELDS = (
+    "first_name",
+    "last_name",
+    "email",
+    "personal_email",
+    "company_email",
+    "phone",
+    "business_name",
+    "joining_date",
+    "address",
+    "postcode",
+)
 REQUIRED_BANK_FIELDS = (
     "commission_bank_name",
     "commission_account_name",
@@ -47,6 +58,8 @@ def sync_agent_onboarding_progress(
 
 
 def _sync_profile_step(db: Session, agent_profile: AgentProfile, actor_user_id: int | None) -> None:
+    if not _text_present(agent_profile.business_name):
+        agent_profile.business_name = "N/A"
     status = "Complete" if _all_fields_present(agent_profile, REQUIRED_PROFILE_FIELDS) else "In Progress"
     _set_step_status(db, agent_profile.id, PROFILE_STEP_TITLE, status, actor_user_id=actor_user_id)
 

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 
 import { apiClient } from "../api/client.js";
 import { useAuth } from "../context/AuthContext.jsx";
+import { normaliseProfileValues } from "../utils/profileCompletion.js";
 
 function friendlyError(error, fallback) {
   if (!error) return fallback;
@@ -85,9 +86,10 @@ export function useAgentResource(profile, pathBuilder, options = {}) {
 }
 
 export async function saveAgentProfile({ token, profile, values }) {
+  const normalisedValues = normaliseProfileValues(values);
   const payload = {
-    ...values,
-    joining_date: values.joining_date || null,
+    ...normalisedValues,
+    joining_date: normalisedValues.joining_date || null,
   };
 
   if (profile?.id) {

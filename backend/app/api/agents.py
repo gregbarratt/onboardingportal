@@ -93,6 +93,52 @@ def ensure_agent_role(db: Session) -> Role:
     return role
 
 
+MANDATORY_AGENT_PROFILE_FIELDS = {
+    "first_name": "First name",
+    "last_name": "Last name",
+    "email": "Email address",
+    "personal_email": "Personal email",
+    "company_email": "One Travel Club email",
+    "phone": "Phone number",
+    "business_name": "Business name",
+    "joining_date": "Joining date",
+    "address": "Address",
+    "postcode": "Postcode",
+    "commission_bank_name": "Bank name",
+    "commission_account_name": "Account name",
+    "commission_sort_code": "Sort code",
+    "commission_account_number": "Account number",
+}
+
+
+def business_name_or_default(value: str | None) -> str:
+    if value is None:
+        return "N/A"
+    cleaned = str(value).strip()
+    return cleaned or "N/A"
+
+
+def missing_mandatory_profile_fields(agent_profile: AgentProfile) -> list[str]:
+    missing: list[str] = []
+    for field_name, label in MANDATORY_AGENT_PROFILE_FIELDS.items():
+        value = getattr(agent_profile, field_name)
+        if field_name == "business_name":
+            value = business_name_or_default(value)
+            agent_profile.business_name = value
+        if value is None or str(value).strip() == "":
+            missing.append(label)
+    return missing
+
+
+def ensure_mandatory_profile_complete(agent_profile: AgentProfile) -> None:
+    missing = missing_mandatory_profile_fields(agent_profile)
+    if missing:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Please complete these profile fields before continuing: {', '.join(missing)}.",
+        )
+
+
 @router.post("", response_model=AgentProfileRead, status_code=status.HTTP_201_CREATED)
 def create_agent_profile(
     request: AgentProfileCreate,
@@ -152,7 +198,7 @@ def create_agent_profile(
         company_email=request.company_email,
         portal_access_enabled=request.portal_access_enabled if admin_user and request.portal_access_enabled is not None else True,
         phone=request.phone,
-        business_name=request.business_name,
+        business_name=business_name_or_default(request.business_name),
         status=request.status or DEFAULT_AGENT_STATUS,
         joining_date=request.joining_date,
         address=request.address,
@@ -162,6 +208,8 @@ def create_agent_profile(
         commission_sort_code=request.commission_sort_code,
         commission_account_number=request.commission_account_number,
     )
+    if not admin_user:
+        ensure_mandatory_profile_complete(agent_profile)
     db.add(agent_profile)
     db.flush()
     sync_agent_onboarding_progress(db, agent_profile, actor_user_id=current_user.id)
@@ -230,7 +278,7 @@ def create_manual_agent(
         company_email=request.company_email,
         portal_access_enabled=request.portal_access_enabled,
         phone=request.phone,
-        business_name=request.business_name,
+        business_name=business_name_or_default(request.business_name),
         status=request.status or DEFAULT_AGENT_STATUS,
         joining_date=request.joining_date,
         address=request.address,
@@ -517,6 +565,9 @@ def update_agent_profile(
 
     for field, value in update_data.items():
         setattr(agent_profile, field, value)
+    agent_profile.business_name = business_name_or_default(agent_profile.business_name)
+    if not admin_user:
+        ensure_mandatory_profile_complete(agent_profile)
     sync_agent_onboarding_progress(db, agent_profile, actor_user_id=current_user.id)
 
     try:

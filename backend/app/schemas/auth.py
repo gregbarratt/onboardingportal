@@ -26,7 +26,7 @@ class AgentRegistrationRequest(BaseModel):
     first_name: str = Field(min_length=1, max_length=100)
     last_name: str = Field(min_length=1, max_length=100)
     phone: str = Field(min_length=1, max_length=50)
-    business_name: str | None = Field(default=None, max_length=255)
+    business_name: str | None = Field(default="N/A", max_length=255)
     address: str = Field(min_length=1)
     postcode: str = Field(min_length=1, max_length=20)
     accepted_terms: bool = False
@@ -49,11 +49,11 @@ class AgentRegistrationRequest(BaseModel):
 
     @field_validator("business_name")
     @classmethod
-    def optional_text_can_be_blank(cls, value: str | None) -> str | None:
+    def optional_text_can_be_blank(cls, value: str | None) -> str:
         if value is None:
-            return None
+            return "N/A"
         cleaned = value.strip()
-        return cleaned or None
+        return cleaned or "N/A"
 
     @field_validator("accepted_terms")
     @classmethod

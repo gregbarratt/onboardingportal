@@ -159,7 +159,7 @@ def register_agent_and_start_payment(
         email=request.email,
         personal_email=request.email,
         phone=request.phone,
-        business_name=request.business_name,
+        business_name=request.business_name or "N/A",
         status="Payment Pending",
         address=request.address,
         postcode=request.postcode,

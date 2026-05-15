@@ -16,6 +16,11 @@ def clean_required_text(value: str) -> str:
     return value.strip()
 
 
+def business_name_or_default(value: str | None) -> str:
+    cleaned = clean_optional_text(value)
+    return cleaned or "N/A"
+
+
 class AgentProfileBase(BaseModel):
     first_name: str = Field(min_length=1, max_length=100)
     last_name: str = Field(min_length=1, max_length=100)
@@ -23,7 +28,7 @@ class AgentProfileBase(BaseModel):
     personal_email: str | None = Field(default=None, min_length=3, max_length=255)
     company_email: str | None = Field(default=None, min_length=3, max_length=255)
     phone: str | None = Field(default=None, max_length=50)
-    business_name: str | None = Field(default=None, max_length=255)
+    business_name: str | None = Field(default="N/A", max_length=255)
     joining_date: date | None = None
     address: str | None = None
     postcode: str | None = Field(default=None, max_length=20)
@@ -61,7 +66,6 @@ class AgentProfileBase(BaseModel):
 
     @field_validator(
         "phone",
-        "business_name",
         "address",
         "postcode",
         "commission_bank_name",
@@ -72,6 +76,11 @@ class AgentProfileBase(BaseModel):
     @classmethod
     def optional_text_can_be_blank(cls, value: str | None) -> str | None:
         return clean_optional_text(value)
+
+    @field_validator("business_name")
+    @classmethod
+    def business_name_defaults_to_na(cls, value: str | None) -> str:
+        return business_name_or_default(value)
 
 
 class AgentProfileCreate(AgentProfileBase):
@@ -129,7 +138,7 @@ class AgentProfileUpdate(BaseModel):
     company_email: str | None = Field(default=None, min_length=3, max_length=255)
     portal_access_enabled: bool | None = None
     phone: str | None = Field(default=None, max_length=50)
-    business_name: str | None = Field(default=None, max_length=255)
+    business_name: str | None = Field(default="N/A", max_length=255)
     status: str | None = None
     joining_date: date | None = None
     address: str | None = None
@@ -182,7 +191,6 @@ class AgentProfileUpdate(BaseModel):
 
     @field_validator(
         "phone",
-        "business_name",
         "address",
         "postcode",
         "commission_bank_name",
@@ -193,6 +201,11 @@ class AgentProfileUpdate(BaseModel):
     @classmethod
     def optional_text_can_be_blank(cls, value: str | None) -> str | None:
         return clean_optional_text(value)
+
+    @field_validator("business_name")
+    @classmethod
+    def business_name_defaults_to_na(cls, value: str | None) -> str:
+        return business_name_or_default(value)
 
 
 class AgentProfileRead(AgentProfileBase):
