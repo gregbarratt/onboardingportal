@@ -57,6 +57,14 @@ services:
         sync: false
       - key: SMTP_USE_TLS
         value: "true"
+      - key: RENDER_API_KEY
+        sync: false
+      - key: RENDER_API_BASE_URL
+        value: https://api.render.com/v1
+      - key: RENDER_SERVICE_NAME_FILTER
+        value: one-travel-club-onboarding
+      - key: RENDER_METRICS_WINDOW_MINUTES
+        value: "60"
 
   - type: web
     name: one-travel-club-onboarding

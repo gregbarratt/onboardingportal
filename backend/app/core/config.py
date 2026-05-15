@@ -35,6 +35,11 @@ class Settings(BaseSettings):
     smtp_use_tls: bool = True
     certificate_instructor_name: str = "Nikki Bishop"
     certificate_authorized_signatory: str = "G Barratt"
+    render_api_key: str = ""
+    render_api_base_url: str = "https://api.render.com/v1"
+    render_service_ids: str = ""
+    render_service_name_filter: str = "one-travel-club-onboarding"
+    render_metrics_window_minutes: int = 60
     initial_admin_email: str = ""
     initial_admin_password: str = ""
 

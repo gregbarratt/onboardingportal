@@ -1,23 +1,32 @@
 import {
+  Activity,
   AlertTriangle,
   CalendarX,
   CheckCircle2,
   Clock3,
+  Cpu,
   CreditCard,
+  Database,
+  HardDrive,
   ShieldAlert,
+  Server,
   UserCheck,
   UserRoundCheck,
   UsersRound,
 } from "lucide-react";
 import { Link } from "react-router-dom";
 
-import { Card, ErrorBanner, LoadingState, StatCard, StatusBadge } from "../../components/ui.jsx";
+import { Card, DataTable, ErrorBanner, LoadingState, StatCard, StatusBadge } from "../../components/ui.jsx";
 import { useApiResource } from "../../hooks/useAgentPortalData.js";
 import AdminPageShell from "./AdminPageShell.jsx";
 
 export default function AdminDashboardPage() {
   const dashboard = useApiResource("/admin/dashboard-summary", {
     fallbackError: "We could not load the admin dashboard.",
+  });
+  const renderUsage = useApiResource("/admin/render-usage", {
+    initialData: null,
+    fallbackError: "We could not load Render performance data.",
   });
 
   if (dashboard.loading) {
@@ -49,6 +58,8 @@ export default function AdminDashboardPage() {
           <StatCard label="Compliance hold" value={stats.compliance_hold || 0} icon={ShieldAlert} />
           <StatCard label="Suspended" value={stats.suspended_agents || 0} icon={AlertTriangle} />
         </div>
+
+        <RenderUsagePanel usage={renderUsage.data} loading={renderUsage.loading} error={renderUsage.error} />
 
         <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
           <Card title="Admin Approval Queue" description="Documents, checklist items, and final approval tasks waiting for an admin decision.">
@@ -104,6 +115,87 @@ export default function AdminDashboardPage() {
       </div>
     </AdminPageShell>
   );
+}
+
+function RenderUsagePanel({ usage, loading, error }) {
+  const summary = usage?.summary || {};
+  const services = usage?.services || [];
+  const metricErrorEntries = Object.entries(usage?.metric_errors || {}).slice(0, 4);
+
+  return (
+    <Card
+      title="Render Performance Overview"
+      description="Shows the live hosting services, plan names, and recent usage when a Render API key is connected."
+    >
+      <div className="space-y-4">
+        <ErrorBanner message={error} />
+
+        {loading ? (
+          <div className="rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm text-slate-600">
+            Loading Render usage...
+          </div>
+        ) : null}
+
+        {!loading && usage?.configured === false ? (
+          <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+            Render is not connected to this dashboard yet. Add RENDER_API_KEY to the backend service in Render, then redeploy. The portal will keep working without it.
+          </div>
+        ) : null}
+
+        {!loading && usage?.configured && usage?.status === "error" ? (
+          <div className="rounded-lg border border-rose-200 bg-rose-50 p-4 text-sm text-rose-700">
+            {usage.message || "Render usage could not be loaded."}
+          </div>
+        ) : null}
+
+        {!loading && usage?.configured && usage?.status !== "error" ? (
+          <>
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
+              <StatCard label="Monitored services" value={summary.monitored_services || 0} icon={Server} />
+              <StatCard label="Active services" value={summary.active_services || 0} icon={Activity} />
+              <StatCard label="Highest CPU" value={formatPercent(summary.highest_cpu_percent)} detail={`Last ${usage.window_minutes || 60} minutes`} icon={Cpu} />
+              <StatCard label="Highest memory" value={formatPercent(summary.highest_memory_percent)} detail="Compared with Render limit" icon={Database} />
+              <StatCard label="Highest disk" value={formatPercent(summary.highest_disk_percent)} detail="Persistent disk usage" icon={HardDrive} />
+            </div>
+
+            <DataTable
+              rows={services}
+              emptyMessage="No Render services were returned for this account yet."
+              columns={[
+                { key: "name", label: "Service" },
+                { key: "type", label: "Type" },
+                { key: "plan", label: "Plan" },
+                { key: "status", label: "Status", render: (row) => <StatusBadge status={row.status} /> },
+                { key: "cpu", label: "CPU", render: (row) => formatPercent(row.metrics?.cpu_percent) },
+                { key: "memory", label: "Memory", render: (row) => formatPercent(row.metrics?.memory_percent) },
+                { key: "disk", label: "Disk", render: (row) => formatPercent(row.metrics?.disk_usage_percent) },
+              ]}
+            />
+
+            {metricErrorEntries.length ? (
+              <div className="rounded-lg border border-amber-200 bg-amber-50 p-4 text-sm text-amber-800">
+                <p className="font-semibold">Some Render usage figures were not available.</p>
+                <ul className="mt-2 list-disc space-y-1 pl-5">
+                  {metricErrorEntries.map(([name, message]) => (
+                    <li key={name}>
+                      {name}: {message}
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            ) : null}
+          </>
+        ) : null}
+      </div>
+    </Card>
+  );
+}
+
+function formatPercent(value) {
+  if (value === null || value === undefined || Number.isNaN(Number(value))) {
+    return "Not shown";
+  }
+  return `${Number(value).toFixed(1)}%`;
 }
 
 function Shortcut({ to, label, detail }) {

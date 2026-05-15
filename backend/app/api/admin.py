@@ -24,6 +24,7 @@ from app.models.training import AgentTrainingProgress, TrainingModule
 from app.models.user import User
 from app.services.email import send_test_email, smtp_is_configured
 from app.services.organizations import can_manage_all_organizations
+from app.services.render_usage import get_render_usage_overview
 
 
 router = APIRouter(prefix="/admin", tags=["Admin"])
@@ -465,6 +466,14 @@ def get_admin_dashboard_summary(
         "approval_queue": approval_queue[:12],
         "approval_queue_total": len(approval_queue),
     }
+
+
+@router.get("/render-usage")
+def get_admin_render_usage(
+    current_user: User = Depends(get_current_active_user),
+) -> dict[str, Any]:
+    require_admin_user(current_user)
+    return get_render_usage_overview()
 
 
 @router.get("/memberships")
