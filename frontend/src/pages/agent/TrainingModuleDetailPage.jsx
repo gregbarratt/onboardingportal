@@ -213,7 +213,14 @@ function TrainingMediaCard({ data }) {
               <FileVideo className="h-4 w-4 text-sky-700" aria-hidden="true" />
               Video lesson
             </div>
-            <video controls src={data.video_url} className="aspect-video w-full rounded-lg border border-slate-200 bg-slate-950" />
+            <video
+              controls
+              controlsList="nodownload noplaybackrate"
+              disablePictureInPicture
+              onContextMenu={(event) => event.preventDefault()}
+              src={data.video_url}
+              className="aspect-video w-full rounded-lg border border-slate-200 bg-slate-950"
+            />
           </div>
         ) : null}
 
@@ -225,14 +232,24 @@ function TrainingMediaCard({ data }) {
             </div>
             <iframe
               title={`${data.title} PDF`}
-              src={data.pdf_url}
+              src={buildProtectedPdfViewUrl(data.pdf_url)}
+              sandbox="allow-same-origin allow-scripts"
               className="h-[520px] w-full rounded-lg border border-slate-200 bg-white"
             />
+            <p className="mt-2 text-xs text-slate-500">
+              This document is shown inside the portal. Download controls are hidden where the browser allows it.
+            </p>
           </div>
         ) : null}
       </div>
     </Card>
   );
+}
+
+function buildProtectedPdfViewUrl(url) {
+  if (!url) return "";
+  const separator = url.includes("#") ? "&" : "#";
+  return `${url}${separator}toolbar=0&navpanes=0&scrollbar=0&view=FitH`;
 }
 
 function QuizCard({
