@@ -1,6 +1,7 @@
 from datetime import date, datetime, timezone
+from textwrap import wrap
 
-from fastapi import APIRouter, Body, Depends, HTTPException, status
+from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
@@ -12,7 +13,7 @@ from app.db.session import get_db
 from app.models.agent_profile import AgentProfile
 from app.models.compliance import CompliancePolicy, PolicyAcceptance
 from app.models.document import Document
-from app.models.training import AgentTrainingProgress, TrainingCategory, TrainingModule
+from app.models.training import AgentTrainingProgress, TrainingModule
 from app.models.user import User
 from app.schemas.compliance import (
     AdminComplianceDashboardRead,
@@ -24,6 +25,7 @@ from app.schemas.compliance import (
     PolicyAcceptanceRequest,
 )
 from app.services.organizations import can_manage_all_organizations
+from app.services.audit import create_audit_log
 
 
 router = APIRouter(tags=["Compliance Centre"])
@@ -75,6 +77,8 @@ def get_policy_acceptances(db: Session, agent_profile: AgentProfile) -> list[Pol
         db.scalars(
             select(PolicyAcceptance)
             .options(selectinload(PolicyAcceptance.policy))
+            .options(selectinload(PolicyAcceptance.agent))
+            .options(selectinload(PolicyAcceptance.accepted_by_user))
             .where(PolicyAcceptance.agent_id == agent_profile.id)
             .order_by(PolicyAcceptance.accepted_date.desc(), PolicyAcceptance.id.desc())
         )
@@ -186,7 +190,7 @@ def get_agent_compliance_status(db: Session, agent_profile: AgentProfile) -> Age
     accepted_policy_titles = [
         acceptance.policy.title
         for acceptance in acceptances
-        if acceptance.policy_id in accepted_policy_ids
+        if acceptance.policy_version == acceptance.policy.version
     ]
     missing_policy_titles = [
         policy.title
@@ -225,6 +229,7 @@ def get_agent_compliance_status(db: Session, agent_profile: AgentProfile) -> Age
         compliance_hold=agent_profile.status == "Compliance Hold",
         required_policy_count=len(required_policies),
         accepted_policy_count=len(accepted_policy_ids),
+        accepted_policy_ids=sorted(accepted_policy_ids),
         missing_policy_titles=missing_policy_titles,
         accepted_policy_titles=accepted_policy_titles,
         missing_document_types=missing_document_types,
@@ -236,6 +241,23 @@ def get_agent_compliance_status(db: Session, agent_profile: AgentProfile) -> Age
         customer_money_handling_rules=policies_by_type["Customer Money Handling"],
         advertising_and_social_media_rules=policies_by_type["Advertising and Social Media"],
         complaints_process=policies_by_type["Complaints Process"],
+    )
+
+
+def get_client_ip(request: Request) -> str | None:
+    forwarded_for = request.headers.get("x-forwarded-for")
+    if forwarded_for:
+        return forwarded_for.split(",")[0].strip() or None
+    real_ip = request.headers.get("x-real-ip")
+    if real_ip:
+        return real_ip.strip() or None
+    return request.client.host if request.client else None
+
+
+def build_acceptance_statement(policy: CompliancePolicy) -> str:
+    return (
+        f"I confirm that I have opened, read, understood, and accepted "
+        f"{policy.title} version {policy.version}."
     )
 
 
@@ -275,6 +297,7 @@ def create_compliance_policy(
 @router.post("/compliance/policies/{policy_id}/accept", response_model=PolicyAcceptanceRead)
 def accept_compliance_policy(
     policy_id: int,
+    request_context: Request,
     request: PolicyAcceptanceRequest | None = Body(default=None),
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
@@ -291,24 +314,46 @@ def accept_compliance_policy(
         select(PolicyAcceptance).where(
             PolicyAcceptance.policy_id == policy.id,
             PolicyAcceptance.agent_id == agent_profile.id,
+            PolicyAcceptance.policy_version == policy.version,
         )
     )
+    accepted_at = datetime.now(timezone.utc)
+    ip_address = get_client_ip(request_context)
+    user_agent = request_context.headers.get("user-agent")
+    acceptance_statement = build_acceptance_statement(policy)
     if acceptance is None:
         acceptance = PolicyAcceptance(
             policy_id=policy.id,
             agent_id=agent_profile.id,
             accepted_by=current_user.id,
-            accepted_date=datetime.now(timezone.utc),
+            accepted_date=accepted_at,
             policy_version=policy.version,
+            ip_address=ip_address,
+            user_agent=user_agent,
+            acceptance_statement=acceptance_statement,
             notes=request.notes if request is not None else None,
         )
         db.add(acceptance)
     else:
         acceptance.accepted_by = current_user.id
-        acceptance.accepted_date = datetime.now(timezone.utc)
+        acceptance.accepted_date = accepted_at
         acceptance.policy_version = policy.version
+        acceptance.ip_address = ip_address
+        acceptance.user_agent = user_agent
+        acceptance.acceptance_statement = acceptance_statement
         if request is not None:
             acceptance.notes = request.notes
+
+    create_audit_log(
+        db,
+        action_type="Policy accepted",
+        description=f"{agent_profile.first_name} {agent_profile.last_name} accepted {policy.title} version {policy.version}.",
+        created_by=current_user.id,
+        user_id=current_user.id,
+        agent_id=agent_profile.id,
+        new_value=policy.title,
+        ip_address=ip_address,
+    )
 
     try:
         db.commit()
@@ -322,6 +367,8 @@ def accept_compliance_policy(
     acceptance = db.scalar(
         select(PolicyAcceptance)
         .options(selectinload(PolicyAcceptance.policy))
+        .options(selectinload(PolicyAcceptance.agent))
+        .options(selectinload(PolicyAcceptance.accepted_by_user))
         .where(PolicyAcceptance.id == acceptance.id)
     )
     if acceptance is None:
@@ -330,6 +377,167 @@ def accept_compliance_policy(
             detail="Policy acceptance was saved but could not be loaded.",
         )
     return acceptance
+
+
+@router.get("/policy-acceptances/{acceptance_id}/receipt.pdf")
+def export_policy_acceptance_receipt(
+    acceptance_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> Response:
+    acceptance = db.scalar(
+        select(PolicyAcceptance)
+        .options(selectinload(PolicyAcceptance.policy))
+        .options(selectinload(PolicyAcceptance.agent))
+        .options(selectinload(PolicyAcceptance.accepted_by_user))
+        .where(PolicyAcceptance.id == acceptance_id)
+    )
+    if acceptance is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Policy acceptance record not found.",
+        )
+
+    if not is_admin_user(current_user):
+        agent_profile = get_own_agent_profile_or_404(db, current_user)
+        if acceptance.agent_id != agent_profile.id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only export your own policy acceptance receipts.",
+            )
+    elif not can_manage_all_organizations(current_user):
+        if current_user.organization_id is None or acceptance.agent.organization_id != current_user.organization_id:
+            raise HTTPException(
+                status_code=status.HTTP_403_FORBIDDEN,
+                detail="You can only export receipts for your organisation.",
+            )
+
+    pdf_bytes = build_policy_acceptance_pdf(acceptance)
+    filename = safe_pdf_filename(
+        f"policy-acceptance-{acceptance.agent_name or acceptance.agent_id}-{acceptance.policy.title}.pdf"
+    )
+    return Response(
+        content=pdf_bytes,
+        media_type="application/pdf",
+        headers={"Content-Disposition": f'attachment; filename="{filename}"'},
+    )
+
+
+def build_policy_acceptance_pdf(acceptance: PolicyAcceptance) -> bytes:
+    accepted_at = acceptance.accepted_date.astimezone(timezone.utc).strftime("%d %b %Y %H:%M UTC")
+    lines = [
+        "One Travel Club",
+        "Policy Acceptance Receipt",
+        "",
+        f"Agent: {acceptance.agent_name or 'Not shown'}",
+        f"Policy: {acceptance.policy.title}",
+        f"Policy type: {acceptance.policy.policy_type}",
+        f"Policy version: {acceptance.policy_version}",
+        f"Accepted date: {accepted_at}",
+        f"Accepted by: {acceptance.accepted_by_email or acceptance.accepted_by}",
+        f"IP address: {acceptance.ip_address or 'Not recorded'}",
+        f"Browser/device: {acceptance.user_agent or 'Not recorded'}",
+        "",
+        "Acceptance statement:",
+        acceptance.acceptance_statement or build_acceptance_statement(acceptance.policy),
+        "",
+        "Policy content at time of export:",
+    ]
+    lines.extend(policy_content_lines(acceptance.policy.content))
+    return simple_pdf(lines)
+
+
+def policy_content_lines(content: str) -> list[str]:
+    lines: list[str] = []
+    for paragraph in content.splitlines() or [content]:
+        cleaned = paragraph.strip()
+        if not cleaned:
+            lines.append("")
+            continue
+        lines.extend(wrap(cleaned, width=90) or [""])
+    return lines
+
+
+def simple_pdf(lines: list[str]) -> bytes:
+    page_line_limit = 46
+    wrapped_lines = [
+        line
+        for raw_line in lines
+        for line in (wrap(raw_line, width=90) if len(raw_line) > 90 else [raw_line])
+    ]
+    pages = [
+        wrapped_lines[index : index + page_line_limit]
+        for index in range(0, len(wrapped_lines), page_line_limit)
+    ] or [[]]
+
+    objects: list[bytes] = [
+        b"<< /Type /Catalog /Pages 2 0 R >>",
+        b"",
+        b"<< /Type /Font /Subtype /Type1 /BaseFont /Helvetica >>",
+    ]
+    page_refs = []
+    for page_lines in pages:
+        page_object_number = len(objects) + 1
+        content_object_number = len(objects) + 2
+        page_refs.append(f"{page_object_number} 0 R")
+        content = pdf_page_content(page_lines)
+        content_bytes = content.encode("latin-1", "replace")
+        objects.append(
+            (
+                f"<< /Type /Page /Parent 2 0 R /MediaBox [0 0 612 792] "
+                f"/Resources << /Font << /F1 3 0 R >> >> "
+                f"/Contents {content_object_number} 0 R >>"
+            ).encode("latin-1")
+        )
+        objects.append(
+            b"<< /Length "
+            + str(len(content_bytes)).encode("ascii")
+            + b" >>\nstream\n"
+            + content_bytes
+            + b"\nendstream"
+        )
+
+    objects[1] = f"<< /Type /Pages /Kids [{' '.join(page_refs)}] /Count {len(page_refs)} >>".encode("latin-1")
+
+    pdf = bytearray(b"%PDF-1.4\n")
+    offsets = [0]
+    for object_number, body in enumerate(objects, start=1):
+        offsets.append(len(pdf))
+        pdf.extend(f"{object_number} 0 obj\n".encode("ascii"))
+        pdf.extend(body)
+        pdf.extend(b"\nendobj\n")
+    xref_start = len(pdf)
+    pdf.extend(f"xref\n0 {len(objects) + 1}\n".encode("ascii"))
+    pdf.extend(b"0000000000 65535 f \n")
+    for offset in offsets[1:]:
+        pdf.extend(f"{offset:010d} 00000 n \n".encode("ascii"))
+    pdf.extend(
+        (
+            f"trailer\n<< /Size {len(objects) + 1} /Root 1 0 R >>\n"
+            f"startxref\n{xref_start}\n%%EOF\n"
+        ).encode("ascii")
+    )
+    return bytes(pdf)
+
+
+def pdf_page_content(lines: list[str]) -> str:
+    commands = ["BT", "/F1 10 Tf", "13 TL", "50 750 Td"]
+    for line in lines:
+        commands.append(f"({pdf_escape(line)}) Tj")
+        commands.append("T*")
+    commands.append("ET")
+    return "\n".join(commands)
+
+
+def pdf_escape(value: str) -> str:
+    return value.encode("latin-1", "replace").decode("latin-1").replace("\\", "\\\\").replace("(", "\\(").replace(")", "\\)")
+
+
+def safe_pdf_filename(value: str) -> str:
+    safe = "".join(character if character.isalnum() or character in ("-", "_", ".") else "-" for character in value)
+    while "--" in safe:
+        safe = safe.replace("--", "-")
+    return safe.strip("-") or "policy-acceptance.pdf"
 
 
 @router.get("/agents/{agent_profile_id}/compliance-status", response_model=AgentComplianceStatusRead)
@@ -405,6 +613,8 @@ def get_admin_compliance_dashboard(
     acceptance_query = (
         select(PolicyAcceptance)
         .options(selectinload(PolicyAcceptance.policy))
+        .options(selectinload(PolicyAcceptance.agent))
+        .options(selectinload(PolicyAcceptance.accepted_by_user))
         .order_by(PolicyAcceptance.accepted_date.desc(), PolicyAcceptance.id.desc())
     )
     if agent_ids:

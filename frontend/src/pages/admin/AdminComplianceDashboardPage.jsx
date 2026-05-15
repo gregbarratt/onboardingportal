@@ -1,8 +1,8 @@
-import { Plus } from "lucide-react";
+import { Download, Eye, Plus, X } from "lucide-react";
 import { useState } from "react";
 
-import { Card, DataTable, ErrorBanner, FormField, LoadingState, PrimaryButton, SelectInput, StatCard, StatusBadge, TextArea, TextInput } from "../../components/ui.jsx";
-import { apiClient } from "../../api/client.js";
+import { Card, DataTable, ErrorBanner, FormField, LoadingState, PrimaryButton, SecondaryButton, SelectInput, StatCard, StatusBadge, TextArea, TextInput } from "../../components/ui.jsx";
+import { API_BASE_URL, apiClient } from "../../api/client.js";
 import { useAuth } from "../../context/AuthContext.jsx";
 import { getFriendlyError, useApiResource } from "../../hooks/useAgentPortalData.js";
 import { formatDateTime } from "../../utils/formatters.js";
@@ -31,6 +31,8 @@ export default function AdminComplianceDashboardPage() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
+  const [selectedPolicy, setSelectedPolicy] = useState(null);
+  const [downloadingId, setDownloadingId] = useState(null);
 
   function update(field, value) {
     setForm((current) => ({ ...current, [field]: value }));
@@ -52,6 +54,33 @@ export default function AdminComplianceDashboardPage() {
       setError(getFriendlyError(err, "We could not create this compliance policy."));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function downloadAcceptanceReceipt(acceptance) {
+    setDownloadingId(acceptance.id);
+    setError("");
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/policy-acceptances/${acceptance.id}/receipt.pdf`, {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!response.ok) {
+        throw new Error("The PDF receipt could not be exported.");
+      }
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const link = document.createElement("a");
+      link.href = url;
+      link.download = `policy-acceptance-${acceptance.agent_name || acceptance.agent_id}.pdf`;
+      document.body.appendChild(link);
+      link.click();
+      link.remove();
+      window.URL.revokeObjectURL(url);
+    } catch (err) {
+      setError(getFriendlyError(err, "We could not export this policy acceptance PDF."));
+    } finally {
+      setDownloadingId(null);
     }
   }
 
@@ -84,6 +113,29 @@ export default function AdminComplianceDashboardPage() {
           <IssueTable title="Missing Documents" rows={data?.missing_document_agents || []} />
           <IssueTable title="Expired Compliance Training" rows={data?.expired_compliance_training_agents || []} />
         </div>
+
+        <Card title="Recent Policy Acceptances" description="Signed policy records include the date, user, IP address, and an exportable PDF receipt.">
+          <DataTable
+            rows={data?.recent_policy_acceptances || []}
+            emptyMessage="No policy acceptances have been recorded yet."
+            columns={[
+              { key: "agent_name", label: "Agent", render: (row) => row.agent_name || `Agent ${row.agent_id}` },
+              { key: "policy", label: "Policy", render: (row) => row.policy?.title || "Not shown" },
+              { key: "policy_version", label: "Version" },
+              { key: "accepted_date", label: "Accepted", render: (row) => formatDateTime(row.accepted_date) },
+              { key: "ip_address", label: "IP address", render: (row) => row.ip_address || "Not recorded" },
+              {
+                key: "export",
+                label: "Export",
+                render: (row) => (
+                  <SecondaryButton type="button" icon={Download} disabled={downloadingId === row.id} onClick={() => downloadAcceptanceReceipt(row)}>
+                    {downloadingId === row.id ? "Exporting..." : "PDF"}
+                  </SecondaryButton>
+                ),
+              },
+            ]}
+          />
+        </Card>
 
         <Card title="Create Compliance Policy">
           <form onSubmit={createPolicy} className="grid gap-4 md:grid-cols-2">
@@ -128,11 +180,55 @@ export default function AdminComplianceDashboardPage() {
               { key: "version", label: "Version" },
               { key: "published_status", label: "Status", render: (row) => <StatusBadge status={row.published_status} /> },
               { key: "created_at", label: "Created", render: (row) => formatDateTime(row.created_at) },
+              {
+                key: "action",
+                label: "Action",
+                render: (row) => (
+                  <SecondaryButton type="button" icon={Eye} onClick={() => setSelectedPolicy(row)}>
+                    Read
+                  </SecondaryButton>
+                ),
+              },
             ]}
           />
         </Card>
+
+        {selectedPolicy ? (
+          <PolicyReadModal policy={selectedPolicy} onClose={() => setSelectedPolicy(null)} />
+        ) : null}
       </div>
     </AdminPageShell>
+  );
+}
+
+function PolicyReadModal({ policy, onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+      <div className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-lg bg-white shadow-xl">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">Compliance policy</p>
+            <h2 className="mt-1 text-xl font-semibold text-slate-950">{policy.title}</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              {policy.policy_type} | Version {policy.version}
+            </p>
+          </div>
+          <button type="button" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" onClick={onClose} aria-label="Close policy">
+            <X className="h-5 w-5" aria-hidden="true" />
+          </button>
+        </div>
+        <div className="overflow-y-auto p-5">
+          <div className="whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-800">
+            {policy.content}
+          </div>
+        </div>
+        <div className="flex justify-end border-t border-slate-200 p-5">
+          <SecondaryButton type="button" icon={X} onClick={onClose}>
+            Close
+          </SecondaryButton>
+        </div>
+      </div>
+    </div>
   );
 }
 

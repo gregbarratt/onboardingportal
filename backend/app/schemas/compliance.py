@@ -85,7 +85,12 @@ class PolicyAcceptanceRead(BaseModel):
     accepted_by: int
     accepted_date: datetime
     policy_version: str
+    ip_address: str | None = None
+    user_agent: str | None = None
+    acceptance_statement: str | None = None
     notes: str | None = None
+    agent_name: str | None = None
+    accepted_by_email: str | None = None
     policy: CompliancePolicyRead
 
     model_config = ConfigDict(from_attributes=True)
@@ -105,6 +110,7 @@ class AgentComplianceStatusRead(BaseModel):
     compliance_hold: bool
     required_policy_count: int
     accepted_policy_count: int
+    accepted_policy_ids: list[int]
     missing_policy_titles: list[str]
     accepted_policy_titles: list[str]
     missing_document_types: list[str]

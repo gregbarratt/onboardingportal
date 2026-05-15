@@ -1,7 +1,7 @@
-import { Check, ShieldCheck } from "lucide-react";
+import { Check, Eye, FileText, ShieldCheck, X } from "lucide-react";
 import { useState } from "react";
 
-import { Card, DataTable, EmptyState, ErrorBanner, LoadingState, PrimaryButton, ProgressBar, StatCard, StatusBadge } from "../../components/ui.jsx";
+import { Card, DataTable, EmptyState, ErrorBanner, LoadingState, PrimaryButton, ProgressBar, SecondaryButton, StatCard, StatusBadge } from "../../components/ui.jsx";
 import { apiClient } from "../../api/client.js";
 import { useAuth } from "../../context/AuthContext.jsx";
 import { getFriendlyError, useAgentResource, useApiResource } from "../../hooks/useAgentPortalData.js";
@@ -28,8 +28,14 @@ function ComplianceContent({ profile }) {
   const [acceptingId, setAcceptingId] = useState(null);
   const [acceptError, setAcceptError] = useState("");
   const [acceptMessage, setAcceptMessage] = useState("");
+  const [selectedPolicy, setSelectedPolicy] = useState(null);
+  const [confirmRead, setConfirmRead] = useState(false);
 
   async function acceptPolicy(policyId) {
+    if (!confirmRead) {
+      setAcceptError("Please confirm you have opened and read the policy before accepting it.");
+      return;
+    }
     setAcceptingId(policyId);
     setAcceptError("");
     setAcceptMessage("");
@@ -38,11 +44,19 @@ function ComplianceContent({ profile }) {
       await apiClient.post(`/compliance/policies/${policyId}/accept`, {}, token);
       await status.reload();
       setAcceptMessage("Policy accepted.");
+      setSelectedPolicy(null);
+      setConfirmRead(false);
     } catch (err) {
       setAcceptError(getFriendlyError(err, "We could not accept this policy."));
     } finally {
       setAcceptingId(null);
     }
+  }
+
+  function openPolicy(policy) {
+    setSelectedPolicy(policy);
+    setConfirmRead(false);
+    setAcceptError("");
   }
 
   if (policies.loading || status.loading) {
@@ -53,6 +67,9 @@ function ComplianceContent({ profile }) {
   const compliance = status.data;
   const acceptedCount = compliance?.accepted_policy_count || 0;
   const requiredCount = compliance?.required_policy_count || policyRows.filter((item) => item.requires_acceptance).length;
+  const acceptedPolicyIds = new Set(compliance?.accepted_policy_ids || []);
+  const policiesToAccept = policyRows.filter((item) => item.requires_acceptance && !acceptedPolicyIds.has(item.id));
+  const acceptedPolicies = policyRows.filter((item) => acceptedPolicyIds.has(item.id));
 
   return (
     <div className="space-y-6">
@@ -101,10 +118,10 @@ function ComplianceContent({ profile }) {
         </div>
       ) : null}
 
-      <Card title="Policies to Accept">
+      <Card title="Policies to Accept" description="Open and read each policy before accepting it. Accepted policies move into the accepted list below.">
         <DataTable
-          rows={policyRows}
-          emptyMessage="No compliance policies have been published yet."
+          rows={policiesToAccept}
+          emptyMessage="No policies are waiting for your acceptance."
           columns={[
             { key: "title", label: "Policy" },
             { key: "policy_type", label: "Type" },
@@ -113,14 +130,33 @@ function ComplianceContent({ profile }) {
             {
               key: "action",
               label: "Action",
-              render: (row) =>
-                row.requires_acceptance ? (
-                  <PrimaryButton type="button" icon={Check} disabled={acceptingId === row.id} onClick={() => acceptPolicy(row.id)}>
-                    {acceptingId === row.id ? "Accepting..." : "Accept"}
-                  </PrimaryButton>
-                ) : (
-                  "Read only"
-                ),
+              render: (row) => (
+                <PrimaryButton type="button" icon={Eye} onClick={() => openPolicy(row)}>
+                  Read and accept
+                </PrimaryButton>
+              ),
+            },
+          ]}
+        />
+      </Card>
+
+      <Card title="Accepted Policies">
+        <DataTable
+          rows={acceptedPolicies}
+          emptyMessage="No policies have been accepted yet."
+          columns={[
+            { key: "title", label: "Policy" },
+            { key: "policy_type", label: "Type" },
+            { key: "version", label: "Version" },
+            { key: "status", label: "Status", render: () => <StatusBadge status="Accepted" /> },
+            {
+              key: "action",
+              label: "Action",
+              render: (row) => (
+                <SecondaryButton type="button" icon={FileText} onClick={() => openPolicy(row)}>
+                  Read
+                </SecondaryButton>
+              ),
             },
           ]}
         />
@@ -133,6 +169,67 @@ function ComplianceContent({ profile }) {
           <GuidanceCard title="Complaints Process" items={compliance.complaints_process} />
         </div>
       ) : null}
+
+      {selectedPolicy ? (
+        <PolicyModal
+          policy={selectedPolicy}
+          isAccepted={acceptedPolicyIds.has(selectedPolicy.id)}
+          confirmRead={confirmRead}
+          accepting={acceptingId === selectedPolicy.id}
+          onConfirmChange={setConfirmRead}
+          onAccept={() => acceptPolicy(selectedPolicy.id)}
+          onClose={() => {
+            setSelectedPolicy(null);
+            setConfirmRead(false);
+          }}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function PolicyModal({ policy, isAccepted, confirmRead, accepting, onConfirmChange, onAccept, onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+      <div className="flex max-h-[90vh] w-full max-w-4xl flex-col rounded-lg bg-white shadow-xl">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">Compliance policy</p>
+            <h2 className="mt-1 text-xl font-semibold text-slate-950">{policy.title}</h2>
+            <p className="mt-1 text-sm text-slate-600">
+              {policy.policy_type} | Version {policy.version}
+            </p>
+          </div>
+          <button type="button" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" onClick={onClose} aria-label="Close policy">
+            <X className="h-5 w-5" aria-hidden="true" />
+          </button>
+        </div>
+        <div className="overflow-y-auto p-5">
+          <div className="whitespace-pre-wrap rounded-lg border border-slate-200 bg-slate-50 p-4 text-sm leading-6 text-slate-800">
+            {policy.content}
+          </div>
+          {isAccepted ? (
+            <div className="mt-4 rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-700">
+              You have accepted this policy.
+            </div>
+          ) : (
+            <label className="mt-4 flex gap-3 rounded-lg border border-slate-200 p-4 text-sm text-slate-700">
+              <input type="checkbox" checked={confirmRead} onChange={(event) => onConfirmChange(event.target.checked)} />
+              <span>I confirm that I have opened, read, understood, and accept this policy.</span>
+            </label>
+          )}
+        </div>
+        <div className="flex flex-wrap justify-end gap-3 border-t border-slate-200 p-5">
+          <SecondaryButton type="button" icon={X} onClick={onClose}>
+            Close
+          </SecondaryButton>
+          {!isAccepted ? (
+            <PrimaryButton type="button" icon={Check} disabled={!confirmRead || accepting} onClick={onAccept}>
+              {accepting ? "Accepting..." : "Accept policy"}
+            </PrimaryButton>
+          ) : null}
+        </div>
+      </div>
     </div>
   );
 }

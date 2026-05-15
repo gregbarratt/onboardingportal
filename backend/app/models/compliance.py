@@ -54,7 +54,7 @@ class CompliancePolicy(Base):
 class PolicyAcceptance(Base):
     __tablename__ = "policy_acceptances"
     __table_args__ = (
-        UniqueConstraint("agent_id", "policy_id", name="uq_policy_acceptances_agent_policy"),
+        UniqueConstraint("agent_id", "policy_id", "policy_version", name="uq_policy_acceptances_agent_policy_version"),
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)
@@ -63,8 +63,23 @@ class PolicyAcceptance(Base):
     accepted_by: Mapped[int] = mapped_column(ForeignKey("users.id"), index=True, nullable=False)
     accepted_date: Mapped[datetime] = mapped_column(DateTime(timezone=True), server_default=func.now(), nullable=False)
     policy_version: Mapped[str] = mapped_column(String(50), nullable=False)
+    ip_address: Mapped[str | None] = mapped_column(String(100), nullable=True)
+    user_agent: Mapped[str | None] = mapped_column(String(500), nullable=True)
+    acceptance_statement: Mapped[str | None] = mapped_column(Text, nullable=True)
     notes: Mapped[str | None] = mapped_column(Text, nullable=True)
 
     policy: Mapped[CompliancePolicy] = relationship(back_populates="acceptances")
     agent: Mapped[AgentProfile] = relationship(back_populates="policy_acceptances")
     accepted_by_user: Mapped[User] = relationship(foreign_keys=[accepted_by])
+
+    @property
+    def agent_name(self) -> str | None:
+        if self.agent is None:
+            return None
+        return f"{self.agent.first_name} {self.agent.last_name}"
+
+    @property
+    def accepted_by_email(self) -> str | None:
+        if self.accepted_by_user is None:
+            return None
+        return self.accepted_by_user.email

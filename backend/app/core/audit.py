@@ -1,6 +1,7 @@
 AUDIT_ACTION_TYPES = (
     "Account created",
     "Agreement signed",
+    "Policy accepted",
     "Payment setup completed",
     "Payment status changed",
     "Membership status changed",
