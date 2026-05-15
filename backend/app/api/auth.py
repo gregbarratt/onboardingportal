@@ -30,6 +30,7 @@ from app.services.agent_ids import generate_next_agent_id
 from app.services.audit import create_audit_log
 from app.services.email import send_password_reset_email, smtp_is_configured
 from app.services.organizations import ensure_default_organization, user_can_access_organization
+from app.services.onboarding_sync import sync_agent_onboarding_progress
 from app.services.passwords import hash_password, verify_password
 from app.services.password_reset import (
     build_password_reset_url,
@@ -177,6 +178,7 @@ def register_agent_and_start_payment(
     )
     db.add(membership)
     db.flush()
+    sync_agent_onboarding_progress(db, agent_profile, actor_user_id=user.id)
 
     try:
         customer = create_stripe_customer(agent_profile)

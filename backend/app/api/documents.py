@@ -17,6 +17,7 @@ from app.db.session import get_db
 from app.models.document import Document
 from app.models.user import User
 from app.schemas.document import DocumentCreate, DocumentFileUploadCreate, DocumentRead, DocumentReviewRequest
+from app.services.onboarding_sync import sync_agent_onboarding_progress
 
 
 router = APIRouter(tags=["Documents and Agreements"])
@@ -128,6 +129,8 @@ def create_agent_document(
         notes=request.notes,
     )
     db.add(document)
+    db.flush()
+    sync_agent_onboarding_progress(db, agent_profile, actor_user_id=current_user.id)
     db.commit()
     db.refresh(document)
     return document
@@ -166,6 +169,8 @@ def upload_agent_document(
         notes=upload_request.notes,
     )
     db.add(document)
+    db.flush()
+    sync_agent_onboarding_progress(db, agent_profile, actor_user_id=current_user.id)
     db.commit()
     db.refresh(document)
     return document
@@ -206,6 +211,8 @@ def verify_document(
     if request is not None and request.notes is not None:
         document.notes = request.notes
 
+    db.flush()
+    sync_agent_onboarding_progress(db, agent_profile, actor_user_id=current_user.id)
     db.commit()
     db.refresh(document)
     return document
@@ -229,6 +236,8 @@ def reject_document(
     if request is not None and request.notes is not None:
         document.notes = request.notes
 
+    db.flush()
+    sync_agent_onboarding_progress(db, agent_profile, actor_user_id=current_user.id)
     db.commit()
     db.refresh(document)
     return document

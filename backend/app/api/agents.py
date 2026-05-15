@@ -36,6 +36,7 @@ from app.services.organizations import (
     organization_id_for_new_record,
     user_can_access_organization,
 )
+from app.services.onboarding_sync import sync_agent_onboarding_progress
 from app.services.password_reset import build_password_reset_url, create_password_reset_token
 from app.services.passwords import hash_password
 
@@ -162,6 +163,8 @@ def create_agent_profile(
         commission_account_number=request.commission_account_number,
     )
     db.add(agent_profile)
+    db.flush()
+    sync_agent_onboarding_progress(db, agent_profile, actor_user_id=current_user.id)
 
     try:
         db.commit()
@@ -249,6 +252,8 @@ def create_manual_agent(
         failed_payment_count=0,
     )
     db.add(membership)
+    db.flush()
+    sync_agent_onboarding_progress(db, agent_profile, actor_user_id=current_user.id)
 
     create_audit_log(
         db,
@@ -512,6 +517,7 @@ def update_agent_profile(
 
     for field, value in update_data.items():
         setattr(agent_profile, field, value)
+    sync_agent_onboarding_progress(db, agent_profile, actor_user_id=current_user.id)
 
     try:
         db.commit()

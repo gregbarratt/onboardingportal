@@ -31,6 +31,7 @@ from app.schemas.membership import (
     StripeSubscriptionSyncResponse,
 )
 from app.services.audit import create_audit_log
+from app.services.onboarding_sync import sync_agent_onboarding_progress
 from app.services.stripe import (
     StripeIntegrationError,
     create_billing_portal_session,
@@ -172,6 +173,7 @@ def update_agent_membership(
     update_data = request.model_dump(exclude_unset=True)
     for field, value in update_data.items():
         setattr(membership, field, value)
+    sync_agent_onboarding_progress(db, agent_profile, actor_user_id=current_user.id)
 
     add_membership_change_audit_logs(
         db,
@@ -228,6 +230,7 @@ def create_or_link_stripe_customer(
 
     membership.stripe_customer_id = stripe_customer_id
     membership.payment_method = membership.payment_method or "Stripe"
+    sync_agent_onboarding_progress(db, agent_profile, actor_user_id=current_user.id)
     create_audit_log(
         db,
         action_type="Payment setup completed",
@@ -355,6 +358,7 @@ def link_existing_stripe_customer(
     previous_customer_id = membership.stripe_customer_id
     membership.stripe_customer_id = request.stripe_customer_id
     membership.payment_method = membership.payment_method or "Stripe"
+    sync_agent_onboarding_progress(db, agent_profile, actor_user_id=current_user.id)
     create_audit_log(
         db,
         action_type="Payment setup completed",
@@ -481,6 +485,7 @@ def sync_agent_stripe_subscription(
             current_user=current_user,
         )
         mark_stripe_sync_success(membership)
+        sync_agent_onboarding_progress(db, agent_profile, actor_user_id=current_user.id)
     except StripeIntegrationError as exc:
         db.rollback()
         failed_membership = db.get(Membership, membership_id)

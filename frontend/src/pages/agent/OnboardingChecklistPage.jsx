@@ -1,3 +1,4 @@
+import { CheckCircle2 } from "lucide-react";
 import { Link } from "react-router-dom";
 
 import {
@@ -46,6 +47,19 @@ function getOnboardingAction(stepTitle) {
   };
 }
 
+function ChecklistStatus({ status }) {
+  if (status === "Complete") {
+    return (
+      <span className="inline-flex items-center gap-1.5">
+        <CheckCircle2 className="h-4 w-4 text-emerald-700" aria-hidden="true" />
+        <StatusBadge status={status} />
+      </span>
+    );
+  }
+
+  return <StatusBadge status={status} />;
+}
+
 export default function OnboardingChecklistPage() {
   return (
     <AgentPageShell
@@ -84,7 +98,7 @@ function OnboardingContent({ profile }) {
           columns={[
             { key: "title", label: "Step", render: (row) => row.step?.title || "Untitled step" },
             { key: "required", label: "Required", render: (row) => (row.step?.required ? "Yes" : "No") },
-            { key: "completion_status", label: "Status", render: (row) => <StatusBadge status={row.completion_status} /> },
+            { key: "completion_status", label: "Status", render: (row) => <ChecklistStatus status={row.completion_status} /> },
             { key: "due_date", label: "Due", render: (row) => formatDate(row.due_date) },
             { key: "evidence_file_or_link", label: "Evidence", render: (row) => <EvidenceLink value={row.evidence_file_or_link} /> },
             { key: "approved_date", label: "Approved", render: (row) => formatDate(row.approved_date) },

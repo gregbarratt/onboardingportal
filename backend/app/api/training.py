@@ -47,6 +47,7 @@ from app.schemas.training import (
     TrainingQuizSubmitRequest,
     TrainingRedoRequest,
 )
+from app.services.onboarding_sync import sync_agent_onboarding_progress
 
 
 router = APIRouter(tags=["Training Academy"])
@@ -835,6 +836,8 @@ def submit_training_quiz_attempt(
     if passed and training_module.certificate_issued:
         progress.certificate_issued = True
 
+    db.flush()
+    sync_agent_onboarding_progress(db, agent_profile, actor_user_id=current_user.id)
     db.commit()
     return db.scalar(
         select(TrainingQuizAttempt)
@@ -889,6 +892,8 @@ def update_agent_training_progress(
     for field, value in update_data.items():
         setattr(progress, field, value)
 
+    db.flush()
+    sync_agent_onboarding_progress(db, agent_profile, actor_user_id=current_user.id)
     db.commit()
     db.refresh(progress)
     return get_training_progress_or_404(db, progress.id)
@@ -933,6 +938,8 @@ def request_training_redo(
         if request is not None and request.notes:
             latest_attempt.admin_notes = request.notes
 
+    db.flush()
+    sync_agent_onboarding_progress(db, agent_profile, actor_user_id=current_user.id)
     db.commit()
     db.refresh(progress)
     return get_training_progress_or_404(db, progress.id)

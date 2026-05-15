@@ -22,6 +22,7 @@ from app.schemas.onboarding import (
     OnboardingStepUpdate,
 )
 from app.services.organizations import can_manage_all_organizations
+from app.services.onboarding_sync import sync_agent_onboarding_progress
 
 
 router = APIRouter(tags=["Onboarding"])
@@ -218,6 +219,8 @@ def list_agent_onboarding(
     agent_profile = get_agent_or_404(db, agent_profile_id)
     check_agent_access(agent_profile, current_user)
     ensure_agent_onboarding_progress(db, agent_profile)
+    sync_agent_onboarding_progress(db, agent_profile, actor_user_id=current_user.id)
+    db.commit()
     return list(
         db.scalars(
             select(AgentOnboardingProgress)
