@@ -1,4 +1,4 @@
-import { FileText, FileVideo, Plus, Save, Trash2, Upload } from "lucide-react";
+import { ExternalLink, FileText, FileVideo, Plus, Save, Trash2, Upload } from "lucide-react";
 import { useEffect, useState } from "react";
 import { useNavigate, useParams } from "react-router-dom";
 
@@ -254,12 +254,33 @@ export default function AdminTrainingModuleBuilderPage() {
       setForm((current) => ({
         ...current,
         content_type: updatedModule.content_type || current.content_type,
-        video_url: updatedModule.video_url || current.video_url,
-        pdf_url: updatedModule.pdf_url || current.pdf_url,
+        video_url: updatedModule.video_url || "",
+        pdf_url: updatedModule.pdf_url || "",
       }));
       setMessage(`${materialType} uploaded and embedded in this lesson.`);
     } catch (err) {
       setError(getFriendlyError(err, `We could not upload this ${materialType.toLowerCase()} file.`));
+    }
+  }
+
+  async function removeMaterial(materialType) {
+    if (!moduleId) return;
+    const confirmed = window.confirm(`Remove the current ${materialType.toLowerCase()} from this training module?`);
+    if (!confirmed) return;
+
+    setError("");
+    setMessage("");
+    try {
+      const updatedModule = await apiClient.delete(`/training/modules/${moduleId}/materials/${materialType}`, token);
+      setForm((current) => ({
+        ...current,
+        content_type: updatedModule.content_type || "Text",
+        video_url: updatedModule.video_url || "",
+        pdf_url: updatedModule.pdf_url || "",
+      }));
+      setMessage(`${materialType} removed. You can upload a replacement when ready.`);
+    } catch (err) {
+      setError(getFriendlyError(err, `We could not remove this ${materialType.toLowerCase()} file.`));
     }
   }
 
@@ -438,7 +459,9 @@ export default function AdminTrainingModuleBuilderPage() {
                 accept="video/mp4,video/webm,video/quicktime,.m4v"
                 disabled={!moduleId}
                 saved={Boolean(form.video_url)}
+                currentUrl={form.video_url}
                 onUpload={(file) => uploadMaterial("Video", file)}
+                onRemove={() => removeMaterial("Video")}
               />
               <MaterialUpload
                 title="PDF"
@@ -446,7 +469,9 @@ export default function AdminTrainingModuleBuilderPage() {
                 accept="application/pdf,.pdf"
                 disabled={!moduleId}
                 saved={Boolean(form.pdf_url)}
+                currentUrl={form.pdf_url}
                 onUpload={(file) => uploadMaterial("PDF", file)}
+                onRemove={() => removeMaterial("PDF")}
               />
             </div>
             {!moduleId ? <p className="mt-3 text-sm text-slate-500">Save the module once before uploading video or PDF files.</p> : null}
@@ -524,7 +549,7 @@ export default function AdminTrainingModuleBuilderPage() {
   );
 }
 
-function MaterialUpload({ title, icon: Icon, accept, disabled, saved, onUpload }) {
+function MaterialUpload({ title, icon: Icon, accept, disabled, saved, currentUrl, onUpload, onRemove }) {
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
   const fileTooLarge = Boolean(file && file.size > MAX_TRAINING_UPLOAD_SIZE_BYTES);
@@ -562,9 +587,28 @@ function MaterialUpload({ title, icon: Icon, accept, disabled, saved, onUpload }
           {fileTooLarge ? ` - maximum ${MAX_TRAINING_UPLOAD_SIZE_MB}MB on this hosting plan.` : ""}
         </p>
       ) : null}
+      {currentUrl ? (
+        <div className="mt-3 rounded-lg border border-slate-200 bg-slate-50 p-3 text-sm">
+          <p className="font-medium text-slate-800">Current {title.toLowerCase()} is live for agents.</p>
+          <div className="mt-3 flex flex-wrap gap-2">
+            <a
+              href={currentUrl}
+              target="_blank"
+              rel="noreferrer"
+              className="inline-flex items-center justify-center gap-2 rounded-lg border border-slate-300 bg-white px-3 py-2 text-sm font-semibold text-slate-700 shadow-sm transition hover:bg-slate-50"
+            >
+              <ExternalLink className="h-4 w-4" aria-hidden="true" />
+              Open current {title}
+            </a>
+            <SecondaryButton type="button" icon={Trash2} onClick={onRemove} className="border-rose-200 text-rose-700 hover:bg-rose-50">
+              Remove {title}
+            </SecondaryButton>
+          </div>
+        </div>
+      ) : null}
       <div className="mt-3">
         <SecondaryButton type="button" icon={Upload} disabled={disabled || uploading || !file || fileTooLarge} onClick={handleUpload}>
-          {uploading ? "Uploading..." : `Upload ${title}`}
+          {uploading ? "Uploading..." : saved ? `Replace ${title}` : `Upload ${title}`}
         </SecondaryButton>
       </div>
     </div>

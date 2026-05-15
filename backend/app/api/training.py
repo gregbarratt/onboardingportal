@@ -3,6 +3,7 @@ import binascii
 import re
 from datetime import date, datetime, timezone
 from pathlib import Path
+from urllib.parse import unquote, urlparse
 from uuid import uuid4
 
 from fastapi import APIRouter, Depends, File, Form, HTTPException, Request, UploadFile, status
@@ -132,6 +133,41 @@ def build_training_material_file_target(training_module_id: int, original_file_n
     target_path = module_upload_dir / stored_file_name
     public_path = f"/uploaded-files/training/module-{training_module_id}/{stored_file_name}"
     return target_path, public_path
+
+
+def unlink_training_material_file(material_url: str | None, training_module_id: int) -> None:
+    if not material_url:
+        return
+
+    parsed_path = unquote(urlparse(material_url).path or material_url)
+    expected_prefix = f"/uploaded-files/training/module-{training_module_id}/"
+    if not parsed_path.startswith(expected_prefix):
+        return
+
+    relative_path = parsed_path.removeprefix("/uploaded-files/").lstrip("/")
+    upload_root = settings.upload_dir.resolve()
+    target_path = (settings.upload_dir / relative_path).resolve()
+
+    try:
+        target_path.relative_to(upload_root)
+    except ValueError:
+        return
+
+    if target_path.is_file():
+        target_path.unlink(missing_ok=True)
+
+
+def refresh_training_content_type(training_module: TrainingModule) -> None:
+    if training_module.video_url and training_module.pdf_url:
+        training_module.content_type = "Mixed"
+    elif training_module.video_url:
+        training_module.content_type = "Video"
+    elif training_module.pdf_url:
+        training_module.content_type = "PDF"
+    elif training_module.quiz_required:
+        training_module.content_type = "Quiz"
+    else:
+        training_module.content_type = "Text"
 
 
 def save_training_material_file(
@@ -523,15 +559,38 @@ async def upload_training_material(
     file_url = build_public_file_url(http_request, public_path)
 
     if material_type == "Video":
+        unlink_training_material_file(training_module.video_url, module_id)
         training_module.video_url = file_url
     else:
+        unlink_training_material_file(training_module.pdf_url, module_id)
         training_module.pdf_url = file_url
 
-    if training_module.video_url and training_module.pdf_url:
-        training_module.content_type = "Mixed"
-    else:
-        training_module.content_type = material_type
+    refresh_training_content_type(training_module)
 
+    db.commit()
+    db.refresh(training_module)
+    return get_training_module_or_404(db, training_module.id)
+
+
+@router.delete("/training/modules/{module_id}/materials/{material_type}", response_model=TrainingModuleRead)
+def delete_training_material(
+    module_id: int,
+    material_type: str,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> TrainingModule:
+    require_admin_user(current_user)
+    training_module = get_training_module_or_404(db, module_id)
+    material_type = clean_material_type(material_type)
+
+    if material_type == "Video":
+        unlink_training_material_file(training_module.video_url, module_id)
+        training_module.video_url = None
+    else:
+        unlink_training_material_file(training_module.pdf_url, module_id)
+        training_module.pdf_url = None
+
+    refresh_training_content_type(training_module)
     db.commit()
     db.refresh(training_module)
     return get_training_module_or_404(db, training_module.id)

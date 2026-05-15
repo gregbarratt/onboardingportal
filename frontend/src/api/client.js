@@ -47,4 +47,5 @@ export const apiClient = {
   post: (path, body, token) => apiRequest(path, { method: "POST", body, token }),
   postForm: (path, body, token) => apiRequest(path, { method: "POST", body, token, isForm: true }),
   put: (path, body, token) => apiRequest(path, { method: "PUT", body, token }),
+  delete: (path, token) => apiRequest(path, { method: "DELETE", token }),
 };
