@@ -267,12 +267,16 @@ def metric_query_params(resource_ids: list[str]) -> list[tuple[str, Any]]:
     end_time = datetime.now(timezone.utc)
     start_time = end_time - timedelta(minutes=safe_window_minutes())
     params: list[tuple[str, Any]] = [
-        ("startTime", start_time.isoformat()),
-        ("endTime", end_time.isoformat()),
+        ("startTime", render_metric_timestamp(start_time)),
+        ("endTime", render_metric_timestamp(end_time)),
         ("resolutionSeconds", 60),
     ]
     params.extend(("resource", resource_id) for resource_id in resource_ids)
     return params
+
+
+def render_metric_timestamp(value: datetime) -> str:
+    return value.astimezone(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
 
 
 def render_get(client: httpx.Client, path: str, params: dict[str, Any] | list[tuple[str, Any]] | None = None) -> Any:
