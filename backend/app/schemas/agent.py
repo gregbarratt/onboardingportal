@@ -97,6 +97,29 @@ class AgentProfileCreate(AgentProfileBase):
         return cleaned
 
 
+class ManualAgentCreate(AgentProfileBase):
+    organization_id: int | None = None
+    agent_id: str | None = Field(default=None, max_length=50)
+    status: str | None = "Registered"
+    portal_access_enabled: bool = True
+    send_password_reset_email: bool = True
+
+    @field_validator("agent_id")
+    @classmethod
+    def agent_id_can_be_blank(cls, value: str | None) -> str | None:
+        return clean_optional_text(value)
+
+    @field_validator("status")
+    @classmethod
+    def status_must_be_allowed(cls, value: str | None) -> str | None:
+        if value is None:
+            return None
+        cleaned = value.strip()
+        if cleaned not in AGENT_STATUSES:
+            raise ValueError("Enter a valid agent status.")
+        return cleaned
+
+
 class AgentProfileUpdate(BaseModel):
     organization_id: int | None = None
     first_name: str | None = Field(default=None, min_length=1, max_length=100)
@@ -183,6 +206,13 @@ class AgentProfileRead(AgentProfileBase):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class ManualAgentCreateResponse(BaseModel):
+    agent: AgentProfileRead
+    password_reset_email_sent: bool
+    password_reset_error: str | None = None
+    message: str
 
 
 class AgentCsvImportRequest(BaseModel):

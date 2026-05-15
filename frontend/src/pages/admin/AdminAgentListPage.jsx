@@ -1,15 +1,44 @@
-import { Download, FileUp, Search, Upload } from "lucide-react";
+import { Download, FileUp, Save, Search, Upload, UserPlus, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
 import { apiClient } from "../../api/client.js";
-import { Card, DataTable, ErrorBanner, LoadingState, PrimaryButton, SelectInput, StatusBadge, TextInput } from "../../components/ui.jsx";
+import {
+  Card,
+  DataTable,
+  ErrorBanner,
+  FormField,
+  LoadingState,
+  PrimaryButton,
+  SecondaryButton,
+  SelectInput,
+  StatusBadge,
+  TextArea,
+  TextInput,
+} from "../../components/ui.jsx";
 import { useAuth } from "../../context/AuthContext.jsx";
 import { buildAgentName, useAgents } from "../../hooks/useAdminData.js";
 import { getFriendlyError } from "../../hooks/useAgentPortalData.js";
 import { formatDate } from "../../utils/formatters.js";
 import { agentStatuses } from "./adminConstants.js";
 import AdminPageShell from "./AdminPageShell.jsx";
+
+const emptyManualAgentForm = {
+  first_name: "",
+  last_name: "",
+  email: "",
+  personal_email: "",
+  company_email: "",
+  phone: "",
+  business_name: "",
+  agent_id: "",
+  status: "Registered",
+  joining_date: "",
+  address: "",
+  postcode: "",
+  portal_access_enabled: true,
+  send_password_reset_email: true,
+};
 
 export default function AdminAgentListPage() {
   const { token } = useAuth();
@@ -22,6 +51,11 @@ export default function AdminAgentListPage() {
   const [importResult, setImportResult] = useState(null);
   const [syncStripeAfterImport, setSyncStripeAfterImport] = useState(true);
   const [stripeSyncing, setStripeSyncing] = useState(false);
+  const [showManualForm, setShowManualForm] = useState(false);
+  const [manualForm, setManualForm] = useState(emptyManualAgentForm);
+  const [manualSaving, setManualSaving] = useState(false);
+  const [manualError, setManualError] = useState("");
+  const [manualMessage, setManualMessage] = useState("");
 
   const filteredAgents = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -65,6 +99,29 @@ export default function AdminAgentListPage() {
       setImportError(getFriendlyError(err, "We could not import this CSV file."));
     } finally {
       setImporting(false);
+    }
+  }
+
+  function updateManualForm(field, value) {
+    setManualForm((current) => ({ ...current, [field]: value }));
+  }
+
+  async function handleManualCreate(event) {
+    event.preventDefault();
+    setManualSaving(true);
+    setManualError("");
+    setManualMessage("");
+
+    try {
+      const result = await apiClient.post("/agents/manual", cleanManualAgentPayload(manualForm), token);
+      setManualMessage(result.message || "Agent created.");
+      setManualForm(emptyManualAgentForm);
+      setShowManualForm(false);
+      await agents.reload();
+    } catch (err) {
+      setManualError(getFriendlyError(err, "We could not create this agent."));
+    } finally {
+      setManualSaving(false);
     }
   }
 
@@ -116,6 +173,110 @@ export default function AdminAgentListPage() {
       <div className="space-y-6">
         <ErrorBanner message={agents.error} />
         <ErrorBanner message={importError} />
+        <ErrorBanner message={manualError} />
+
+        {manualMessage ? (
+          <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-700">
+            {manualMessage}
+          </div>
+        ) : null}
+
+        <Card
+          title="Add Agent Manually"
+          description="Create one agent at a time. This creates their portal login, agent profile, and starter membership record."
+          actions={
+            showManualForm ? (
+              <SecondaryButton type="button" icon={X} onClick={() => setShowManualForm(false)}>
+                Close form
+              </SecondaryButton>
+            ) : (
+              <PrimaryButton type="button" icon={UserPlus} onClick={() => setShowManualForm(true)}>
+                Add agent
+              </PrimaryButton>
+            )
+          }
+        >
+          {showManualForm ? (
+            <form onSubmit={handleManualCreate} className="space-y-5">
+              <div className="grid gap-4 md:grid-cols-2">
+                <FormField label="First name">
+                  <TextInput value={manualForm.first_name} onChange={(event) => updateManualForm("first_name", event.target.value)} required />
+                </FormField>
+                <FormField label="Last name">
+                  <TextInput value={manualForm.last_name} onChange={(event) => updateManualForm("last_name", event.target.value)} required />
+                </FormField>
+                <FormField label="Login email" help="This is the email address they use to sign in.">
+                  <TextInput type="email" value={manualForm.email} onChange={(event) => updateManualForm("email", event.target.value)} required />
+                </FormField>
+                <FormField label="Personal email" help="Optional. Use this if their personal email is different.">
+                  <TextInput type="email" value={manualForm.personal_email} onChange={(event) => updateManualForm("personal_email", event.target.value)} />
+                </FormField>
+                <FormField label="Company email" help="Optional One Travel Club email if they have one.">
+                  <TextInput type="email" value={manualForm.company_email} onChange={(event) => updateManualForm("company_email", event.target.value)} />
+                </FormField>
+                <FormField label="Mobile number">
+                  <TextInput value={manualForm.phone} onChange={(event) => updateManualForm("phone", event.target.value)} />
+                </FormField>
+                <FormField label="Business name">
+                  <TextInput value={manualForm.business_name} onChange={(event) => updateManualForm("business_name", event.target.value)} />
+                </FormField>
+                <FormField label="Agent ID" help="Optional. Leave blank and the portal will choose the next ID.">
+                  <TextInput value={manualForm.agent_id} onChange={(event) => updateManualForm("agent_id", event.target.value)} placeholder="Example: OTC-00134" />
+                </FormField>
+                <FormField label="Status">
+                  <SelectInput value={manualForm.status} onChange={(event) => updateManualForm("status", event.target.value)}>
+                    {agentStatuses.map((item) => (
+                      <option key={item} value={item}>
+                        {item}
+                      </option>
+                    ))}
+                  </SelectInput>
+                </FormField>
+                <FormField label="Joining date">
+                  <TextInput type="date" value={manualForm.joining_date} onChange={(event) => updateManualForm("joining_date", event.target.value)} />
+                </FormField>
+                <FormField label="Postcode">
+                  <TextInput value={manualForm.postcode} onChange={(event) => updateManualForm("postcode", event.target.value)} />
+                </FormField>
+              </div>
+              <FormField label="Address">
+                <TextArea value={manualForm.address} onChange={(event) => updateManualForm("address", event.target.value)} />
+              </FormField>
+              <div className="grid gap-3 md:grid-cols-2">
+                <label className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={manualForm.portal_access_enabled}
+                    onChange={(event) => updateManualForm("portal_access_enabled", event.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-teal-700 focus:ring-teal-700"
+                  />
+                  Give this agent portal access
+                </label>
+                <label className="flex items-center gap-3 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-sm font-medium text-slate-700">
+                  <input
+                    type="checkbox"
+                    checked={manualForm.send_password_reset_email}
+                    onChange={(event) => updateManualForm("send_password_reset_email", event.target.checked)}
+                    className="h-4 w-4 rounded border-slate-300 text-teal-700 focus:ring-teal-700"
+                  />
+                  Send password setup email
+                </label>
+              </div>
+              <div className="flex flex-wrap gap-2">
+                <PrimaryButton type="submit" icon={Save} disabled={manualSaving}>
+                  {manualSaving ? "Creating agent..." : "Create agent"}
+                </PrimaryButton>
+                <SecondaryButton type="button" icon={X} onClick={() => setShowManualForm(false)} disabled={manualSaving}>
+                  Cancel
+                </SecondaryButton>
+              </div>
+            </form>
+          ) : (
+            <p className="text-sm text-slate-600">
+              Use this for one-off agents. For a large list, keep using the CSV importer below.
+            </p>
+          )}
+        </Card>
 
         <Card
           title="Import Agents"
@@ -259,6 +420,22 @@ export default function AdminAgentListPage() {
       </div>
     </AdminPageShell>
   );
+}
+
+function cleanManualAgentPayload(form) {
+  const payload = {
+    ...form,
+    joining_date: form.joining_date || null,
+  };
+
+  Object.keys(payload).forEach((key) => {
+    if (typeof payload[key] === "string") {
+      const cleaned = payload[key].trim();
+      payload[key] = cleaned || null;
+    }
+  });
+
+  return payload;
 }
 
 function ImportStat({ label, value }) {

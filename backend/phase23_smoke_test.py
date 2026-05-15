@@ -76,6 +76,7 @@ def run_smoke_tests() -> None:
     assert_json("admin document summary", client.get("/admin/documents", headers=admin_headers), 200)
     assert_json("admin attendance summary", client.get("/admin/attendance", headers=admin_headers), 200)
     assert_json("admin certificate summary", client.get("/admin/certificates", headers=admin_headers), 200)
+    test_manual_agent_create(admin_headers)
 
     own_agent_list = assert_json("agent own profile list", client.get("/agents", headers=agent_headers), 200)
     assert len(own_agent_list) == 1, "Agent should only see their own profile."
@@ -172,6 +173,43 @@ def test_organizations(superadmin_headers: dict[str, str], admin_headers: dict[s
         ),
         403,
     )
+
+
+def test_manual_agent_create(headers: dict[str, str]) -> None:
+    created = assert_json(
+        "manual agent create",
+        client.post(
+            "/agents/manual",
+            headers=headers,
+            json={
+                "first_name": "Manual",
+                "last_name": "Agent",
+                "email": "manual.agent@example.com",
+                "personal_email": "manual.personal@example.com",
+                "company_email": "manual.agent@onetravelclub.co.uk",
+                "phone": "07123 456789",
+                "business_name": "Manual Agent Travel",
+                "status": "Registered",
+                "postcode": "M1 1AA",
+                "address": "1 Manual Street",
+                "portal_access_enabled": True,
+                "send_password_reset_email": False,
+            },
+        ),
+        201,
+    )
+    agent = created["agent"]
+    assert agent["email"] == "manual.agent@example.com", "Manual agent email was not saved."
+    assert agent["agent_id"], "Manual agent ID was not generated."
+    assert created["password_reset_email_sent"] is False, "Manual test should not send SMTP email."
+
+    membership = assert_json(
+        "manual agent starter membership",
+        client.get(f"/agents/{agent['id']}/membership", headers=headers),
+        200,
+    )
+    assert membership["membership_status"] == "Invited", "Starter membership was not created."
+    assert membership["payment_status"] == "Not Started", "Starter payment status was not set."
 
 
 def test_membership_and_payment(admin_headers: dict[str, str], agent: dict[str, Any], agent_headers: dict[str, str]) -> None:
