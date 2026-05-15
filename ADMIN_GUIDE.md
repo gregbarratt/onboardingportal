@@ -253,21 +253,6 @@ Admins can add supplier details, including:
 
 Agents only see supplier access after they are Approved to Trade.
 
-## Marketing Hub
-
-Admins can add marketing resources, including:
-
-- Brand guidelines
-- Approved logo files
-- Social media templates
-- Approved offer wording
-- Advertising policy
-- CMA-compliant pricing guidance
-- Campaign assets
-- Downloadable resources
-
-Agents only see marketing resources after accepting the social media and advertising policy.
-
 ## Audit Logs
 
 Audit logs are the compliance history of the system.
@@ -353,7 +338,6 @@ The system then:
 - Completes the final onboarding step
 - Creates an audit log entry
 - Unlocks Supplier Access
-- Allows Marketing Hub access if the social media policy is accepted
 
 ## Stripe Notes
 

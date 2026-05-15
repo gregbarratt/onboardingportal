@@ -11,7 +11,6 @@ import {
   GraduationCap,
   LayoutDashboard,
   LogOut,
-  Megaphone,
   Menu,
   ShieldCheck,
   UserRound,
@@ -37,7 +36,6 @@ const navItems = [
   { label: "Documents", to: "/documents", icon: FileCheck2 },
   { label: "Certificates", to: "/certificates", icon: Award },
   { label: "Supplier Access", to: "/supplier-access", icon: ClipboardList },
-  { label: "Marketing Hub", to: "/marketing", icon: Megaphone },
   { label: "Compliance", to: "/compliance", icon: ShieldCheck },
 ];
 

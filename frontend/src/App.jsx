@@ -9,7 +9,6 @@ import ComplianceCentrePage from "./pages/agent/ComplianceCentrePage.jsx";
 import DocumentsAgreementsPage from "./pages/agent/DocumentsAgreementsPage.jsx";
 import FurtherTrainingPage from "./pages/agent/FurtherTrainingPage.jsx";
 import LiveCallsPage from "./pages/agent/LiveCallsPage.jsx";
-import MarketingHubPage from "./pages/agent/MarketingHubPage.jsx";
 import MembershipPaymentsPage from "./pages/agent/MembershipPaymentsPage.jsx";
 import OnboardingChecklistPage from "./pages/agent/OnboardingChecklistPage.jsx";
 import ProfilePage from "./pages/agent/ProfilePage.jsx";
@@ -70,7 +69,6 @@ export default function App() {
           <Route path="/documents" element={<DocumentsAgreementsPage />} />
           <Route path="/certificates" element={<CertificatesPage />} />
           <Route path="/supplier-access" element={<SupplierAccessPage />} />
-          <Route path="/marketing" element={<MarketingHubPage />} />
           <Route path="/compliance" element={<ComplianceCentrePage />} />
           <Route path="/admin" element={adminPage(<AdminDashboardPage />)} />
           <Route path="/admin/agents" element={adminPage(<AdminAgentListPage />)} />

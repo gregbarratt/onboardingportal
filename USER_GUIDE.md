@@ -218,21 +218,6 @@ Supplier Access contains protected supplier links and instructions.
 
 This area is locked until the agent is Approved to Trade.
 
-## Marketing Hub
-
-The Marketing Hub contains approved business resources, such as:
-
-- Brand guidelines
-- Logo files
-- Social media templates
-- Approved offer wording
-- Advertising policy
-- Pricing guidance
-- Campaign assets
-- Downloadable resources
-
-This area is locked until the agent accepts the social media and advertising policy.
-
 ## Notifications
 
 Notifications are messages inside the portal.

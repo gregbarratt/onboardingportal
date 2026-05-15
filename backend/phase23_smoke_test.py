@@ -95,7 +95,7 @@ def run_smoke_tests() -> None:
     test_documents(admin_headers, mark, mark_headers)
     test_compliance_policy_acceptance(mark_headers)
     test_final_approval(admin_headers, emma)
-    test_supplier_and_marketing_access(sarah_headers, agent_headers, emma_headers)
+    test_supplier_access(sarah_headers, agent_headers)
     test_audit_logs(admin_headers, emma)
     test_agent_csv_import(admin_headers)
     test_admin_dashboard_reports(admin_headers)
@@ -411,14 +411,12 @@ def test_final_approval(headers: dict[str, str], agent: dict[str, Any]) -> None:
     assert approved["approved_to_trade"], "Approve to Trade did not complete."
 
 
-def test_supplier_and_marketing_access(
+def test_supplier_access(
     locked_headers: dict[str, str],
     approved_headers: dict[str, str],
-    marketing_headers: dict[str, str],
 ) -> None:
     assert_status("supplier access locked", client.get("/supplier-access", headers=locked_headers), 403)
     assert_json("supplier access unlocked", client.get("/supplier-access", headers=approved_headers), 200)
-    assert_json("marketing access unlocked", client.get("/marketing-assets", headers=marketing_headers), 200)
 
 
 def test_audit_logs(headers: dict[str, str], agent: dict[str, Any]) -> None:

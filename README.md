@@ -2,7 +2,7 @@
 
 Travel Agent Onboarding Hub is a secure web portal for One Travel Club.
 
-It helps onboard independent travel agents in one organised place. The hub tracks agent profiles, membership payments, onboarding checklists, training, live call attendance, documents, compliance, certificates, supplier access, marketing resources, notifications, reports, and admin approval before an agent is allowed to trade.
+It helps onboard independent travel agents in one organised place. The hub tracks agent profiles, membership payments, onboarding checklists, training, live call attendance, documents, compliance, certificates, supplier access, notifications, reports, and admin approval before an agent is allowed to trade.
 
 ## Project Folders
 
@@ -30,7 +30,6 @@ The frontend is the visible portal in the browser. It is built with React and Ta
 - Compliance Centre
 - Certificate tracking
 - Supplier Access
-- Marketing Hub
 - Audit logs and admin notes
 - Notifications
 - Admin reports
@@ -42,7 +41,6 @@ The frontend is the visible portal in the browser. It is built with React and Ta
 - Agents can only see their own private records.
 - Admin users can manage all agent records.
 - Supplier Access is locked until an agent is Approved to Trade.
-- Marketing Hub is locked until the social media and advertising policy has been accepted.
 - Further Training is locked until mandatory onboarding training is complete.
 - An agent cannot be Approved to Trade until the final approval checks are complete.
 - Stripe can be connected to register agents through Stripe Checkout, then read customer subscriptions, invoices, payment status, and send agents to Stripe's secure billing portal for card updates.
