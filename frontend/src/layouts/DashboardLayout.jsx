@@ -1,6 +1,7 @@
 import {
   Award,
   BarChart3,
+  Bell,
   BookOpen,
   BriefcaseBusiness,
   CalendarCheck,
@@ -62,15 +63,15 @@ export default function DashboardLayout() {
   const showAdmin = adminRoles.includes(roleName);
 
   return (
-    <div className="min-h-screen bg-slate-100">
-      <aside className="fixed inset-y-0 left-0 z-20 hidden w-72 border-r border-slate-200 bg-white lg:block">
-        <div className="flex h-16 items-center gap-3 border-b border-slate-200 px-5">
-          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-sea text-sm font-bold text-white">
+    <div className="min-h-screen bg-[#eef2f6]">
+      <aside className="fixed inset-y-0 left-0 z-20 hidden w-72 border-r border-[#32445b] bg-[#172334] lg:block">
+        <div className="flex h-16 items-center gap-3 border-b border-[#32445b] px-5">
+          <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#9b3f21] text-sm font-bold text-white shadow-sm ring-1 ring-white/15">
             OTC
           </div>
           <div>
-            <p className="text-sm font-semibold text-ink">One Travel Club</p>
-            <p className="text-xs text-slate-500">Onboarding Hub</p>
+            <p className="text-sm font-semibold text-white">One Travel Club</p>
+            <p className="text-xs text-slate-300">Onboarding Hub</p>
           </div>
         </div>
         <nav className="flex h-[calc(100vh-4rem)] flex-col gap-1 overflow-y-auto px-3 py-4">
@@ -86,15 +87,20 @@ export default function DashboardLayout() {
             className="absolute inset-0 bg-slate-950/40"
             onClick={() => setMobileNavOpen(false)}
           />
-          <aside className="relative flex h-full w-80 max-w-[86vw] flex-col border-r border-slate-200 bg-white shadow-soft">
-            <div className="flex h-16 items-center justify-between border-b border-slate-200 px-5">
-              <div>
-                <p className="text-sm font-semibold text-ink">One Travel Club</p>
-                <p className="text-xs text-slate-500">Onboarding Hub</p>
+          <aside className="relative flex h-full w-80 max-w-[86vw] flex-col border-r border-[#32445b] bg-[#172334] shadow-soft">
+            <div className="flex h-16 items-center justify-between border-b border-[#32445b] px-5">
+              <div className="flex items-center gap-3">
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-[#9b3f21] text-sm font-bold text-white shadow-sm ring-1 ring-white/15">
+                  OTC
+                </div>
+                <div>
+                  <p className="text-sm font-semibold text-white">One Travel Club</p>
+                  <p className="text-xs text-slate-300">Onboarding Hub</p>
+                </div>
               </div>
               <button
                 type="button"
-                className="focus-ring inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-600"
+                className="focus-ring inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/20 text-slate-200"
                 aria-label="Close navigation"
                 title="Close navigation"
                 onClick={() => setMobileNavOpen(false)}
@@ -110,11 +116,11 @@ export default function DashboardLayout() {
       )}
 
       <div className="lg:pl-72">
-        <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-slate-200 bg-white px-4 lg:px-8">
+        <header className="sticky top-0 z-10 flex h-16 items-center justify-between border-b border-[#32445b] bg-[#172334] px-4 text-white shadow-sm lg:px-8">
           <div className="flex items-center gap-3">
             <button
               type="button"
-              className="focus-ring inline-flex h-10 w-10 items-center justify-center rounded-lg border border-slate-200 text-slate-600 lg:hidden"
+              className="focus-ring inline-flex h-10 w-10 items-center justify-center rounded-lg border border-white/20 text-slate-200 lg:hidden"
               aria-label="Open navigation"
               title="Open navigation"
               onClick={() => setMobileNavOpen(true)}
@@ -122,18 +128,27 @@ export default function DashboardLayout() {
               <Menu size={20} />
             </button>
             <div>
-              <p className="text-sm font-semibold text-ink">Travel Agent Onboarding Hub</p>
-              <p className="text-xs text-slate-500">{roleName}</p>
+              <p className="text-sm font-semibold text-white">Travel Agent Onboarding Hub</p>
+              <p className="text-xs text-slate-300">{roleName}</p>
             </div>
           </div>
-          <button
-            type="button"
-            onClick={logout}
-            className="focus-ring inline-flex items-center gap-2 rounded-lg border border-slate-200 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
-          >
-            <LogOut size={17} />
-            Sign out
-          </button>
+          <div className="flex items-center gap-2">
+            <button
+              type="button"
+              className="focus-ring hidden items-center gap-2 rounded-lg border border-[#c6a56e] px-3 py-2 text-sm font-semibold text-[#f5dca9] transition hover:bg-white/10 sm:inline-flex"
+            >
+              <Bell size={16} />
+              Alerts
+            </button>
+            <button
+              type="button"
+              onClick={logout}
+              className="focus-ring inline-flex items-center gap-2 rounded-lg border border-[#c6a56e] px-3 py-2 text-sm font-semibold text-[#f5dca9] transition hover:bg-white/10"
+            >
+              <LogOut size={17} />
+              Sign out
+            </button>
+          </div>
         </header>
 
         <main className="px-4 py-6 lg:px-8">
@@ -152,7 +167,7 @@ function NavigationLinks({ showAdmin, onNavigate }) {
       ))}
       {showAdmin ? (
         <>
-          <div className="mt-4 border-t border-slate-200 pt-4">
+          <div className="mt-4 border-t border-white/10 pt-4">
             <p className="px-3 text-xs font-semibold uppercase tracking-wide text-slate-400">Admin</p>
           </div>
           {adminNavItems.map((item) => (
@@ -175,7 +190,7 @@ function SidebarLink({ item, onNavigate }) {
       className={({ isActive }) =>
         [
           "flex items-center gap-3 rounded-lg px-3 py-2.5 text-sm font-semibold transition",
-          isActive ? "bg-sea text-white" : "text-slate-600 hover:bg-slate-100 hover:text-ink",
+          isActive ? "bg-[#b34d2b] text-white shadow-sm" : "text-slate-200 hover:bg-white/10 hover:text-white",
         ].join(" ")
       }
     >
