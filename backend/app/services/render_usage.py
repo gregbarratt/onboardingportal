@@ -181,28 +181,30 @@ def postgres_to_dashboard_row(database: dict[str, Any]) -> dict[str, Any]:
 
 
 def attach_metrics(client: httpx.Client, resources: list[dict[str, Any]]) -> None:
-    resource_ids = [resource["id"] for resource in resources if resource.get("id")]
-    if not resource_ids:
-        return
-
-    metric_params = metric_query_params(resource_ids)
-    for metric_name, endpoint in METRIC_ENDPOINTS.items():
-        try:
-            summaries = get_metric_summaries(client, endpoint, metric_params)
-        except RenderUsageError as exc:
-            for resource in resources:
-                resource["metric_errors"][metric_name] = str(exc)
+    for resource in resources:
+        resource_id = text_or_none(resource.get("id"))
+        if not resource_id:
             continue
 
-        for resource in resources:
-            summary = summaries.get(resource["id"])
+        metric_params = metric_query_params([resource_id])
+        for metric_name, endpoint in METRIC_ENDPOINTS.items():
+            try:
+                summaries = get_metric_summaries(client, endpoint, metric_params)
+            except RenderUsageError as exc:
+                resource["metric_errors"][metric_name] = str(exc)
+                continue
+
+            summary = summaries.get(resource_id) or first_metric_summary(summaries)
             if summary:
                 resource["metrics"][metric_name] = summary
 
-    for resource in resources:
         add_usage_percent(resource, "cpu", "cpu_limit")
         add_usage_percent(resource, "memory", "memory_limit")
         add_usage_percent(resource, "disk_usage", "disk_capacity")
+
+
+def first_metric_summary(summaries: dict[str, dict[str, Any]]) -> dict[str, Any] | None:
+    return next(iter(summaries.values()), None)
 
 
 def get_metric_summaries(client: httpx.Client, endpoint: str, params: list[tuple[str, Any]]) -> dict[str, dict[str, Any]]:
