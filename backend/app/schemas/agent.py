@@ -284,6 +284,16 @@ class AgentStripeSyncBatchResponse(BaseModel):
     errors: list[AgentStripeSyncBatchError] = Field(default_factory=list)
 
 
+class BulkAgentAccessTrainingResponse(BaseModel):
+    message: str
+    users_checked: int
+    users_activated: int
+    agents_checked: int
+    portal_access_enabled: int
+    onboarding_modules_found: int
+    onboarding_training_completed: int
+
+
 class FinalApprovalRequirementRead(BaseModel):
     key: str
     label: str

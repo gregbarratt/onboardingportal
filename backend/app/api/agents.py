@@ -1,22 +1,26 @@
 import secrets
+from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_current_active_user
 from app.core.agent_statuses import DEFAULT_AGENT_STATUS
 from app.core.roles import ADMIN_ROLE_NAMES, DEFAULT_ROLES
 from app.core.payment_statuses import DEFAULT_MEMBERSHIP_PAYMENT_STATUS
+from app.core.training import DEFAULT_TRAINING_TRACK
 from app.db.session import get_db
 from app.models.agent_profile import AgentProfile
 from app.models.membership import Membership
 from app.models.role import Role
+from app.models.training import AgentTrainingProgress, TrainingAssignment, TrainingModule
 from app.models.user import User
 from app.schemas.agent import (
     AgentCsvImportRequest,
     AgentCsvImportResponse,
+    BulkAgentAccessTrainingResponse,
     ManualAgentCreate,
     ManualAgentCreateResponse,
     AgentProfileCreate,
@@ -373,6 +377,160 @@ def list_agent_profiles(
 
     own_profile = get_existing_profile_for_user(db, current_user.id)
     return [own_profile] if own_profile is not None else []
+
+
+@router.post("/bulk/enable-access-complete-onboarding-training", response_model=BulkAgentAccessTrainingResponse)
+def enable_access_and_complete_onboarding_training(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> dict:
+    if not is_admin_user(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only admins can update portal access and training records.",
+        )
+
+    user_query = select(User).options(selectinload(User.agent_profile))
+    agent_query = select(AgentProfile).options(selectinload(AgentProfile.user)).order_by(AgentProfile.id)
+    if not can_manage_all_organizations(current_user):
+        if current_user.organization_id is None:
+            return {
+                "message": "No organisation users were found.",
+                "users_checked": 0,
+                "users_activated": 0,
+                "agents_checked": 0,
+                "portal_access_enabled": 0,
+                "onboarding_modules_found": 0,
+                "onboarding_training_completed": 0,
+            }
+        user_query = user_query.where(User.organization_id == current_user.organization_id)
+        agent_query = agent_query.where(AgentProfile.organization_id == current_user.organization_id)
+
+    users = list(db.scalars(user_query))
+    agents = list(db.scalars(agent_query))
+    onboarding_modules = list(
+        db.scalars(
+            select(TrainingModule)
+            .where(
+                TrainingModule.training_track == DEFAULT_TRAINING_TRACK,
+                TrainingModule.published_status == "Published",
+                TrainingModule.mandatory.is_(True),
+            )
+            .order_by(TrainingModule.id)
+        )
+    )
+
+    users_activated = 0
+    portal_access_enabled = 0
+    onboarding_training_completed = 0
+    today = date.today()
+
+    for user in users:
+        if not user.is_active:
+            user.is_active = True
+            users_activated += 1
+
+    for agent_profile in agents:
+        if not agent_profile.portal_access_enabled:
+            agent_profile.portal_access_enabled = True
+            portal_access_enabled += 1
+
+        for training_module in onboarding_modules:
+            progress = complete_onboarding_training_module(
+                db,
+                agent_profile=agent_profile,
+                training_module=training_module,
+                admin_user_id=current_user.id,
+                completed_date=today,
+            )
+            if progress:
+                onboarding_training_completed += 1
+
+        sync_agent_onboarding_progress(db, agent_profile, actor_user_id=current_user.id)
+
+    create_audit_log(
+        db,
+        action_type="Access level changed",
+        description=(
+            "Bulk update enabled portal logins and marked mandatory onboarding training complete "
+            "for the current organisation."
+        ),
+        created_by=current_user.id,
+        user_id=current_user.id,
+    )
+    db.commit()
+
+    return {
+        "message": (
+            "Portal access is enabled for all visible users. Mandatory onboarding training is marked complete. "
+            "Further training was not changed."
+        ),
+        "users_checked": len(users),
+        "users_activated": users_activated,
+        "agents_checked": len(agents),
+        "portal_access_enabled": portal_access_enabled,
+        "onboarding_modules_found": len(onboarding_modules),
+        "onboarding_training_completed": onboarding_training_completed,
+    }
+
+
+def complete_onboarding_training_module(
+    db: Session,
+    *,
+    agent_profile: AgentProfile,
+    training_module: TrainingModule,
+    admin_user_id: int,
+    completed_date: date,
+) -> AgentTrainingProgress | None:
+    assignment = db.scalar(
+        select(TrainingAssignment).where(
+            TrainingAssignment.agent_id == agent_profile.id,
+            TrainingAssignment.training_module_id == training_module.id,
+        )
+    )
+    if assignment is None:
+        assignment = TrainingAssignment(
+            agent_id=agent_profile.id,
+            training_module_id=training_module.id,
+            assigned_by=admin_user_id,
+            mandatory=True,
+        )
+        db.add(assignment)
+        db.flush()
+    else:
+        assignment.mandatory = True
+
+    progress = db.scalar(
+        select(AgentTrainingProgress).where(
+            AgentTrainingProgress.agent_id == agent_profile.id,
+            AgentTrainingProgress.training_module_id == training_module.id,
+        )
+    )
+    if progress is None:
+        progress = AgentTrainingProgress(
+            assignment_id=assignment.id,
+            agent_id=agent_profile.id,
+            training_module_id=training_module.id,
+        )
+        db.add(progress)
+        db.flush()
+    elif progress.assignment_id is None:
+        progress.assignment_id = assignment.id
+
+    already_complete = (
+        progress.progress_status == "Complete"
+        and (not training_module.quiz_required or progress.passed is True)
+    )
+    if already_complete:
+        return None
+
+    progress.progress_status = "Complete"
+    progress.started_date = progress.started_date or completed_date
+    progress.completed_date = completed_date
+    progress.score = progress.score if progress.score is not None else 100
+    progress.passed = True
+    progress.notes = progress.notes or "Marked complete by admin bulk onboarding update."
+    return progress
 
 
 @router.post("/import/csv", response_model=AgentCsvImportResponse)

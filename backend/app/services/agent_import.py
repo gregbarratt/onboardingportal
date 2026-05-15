@@ -322,7 +322,7 @@ def import_agent_row(
             email=login_email,
             personal_email=clean_email(row.get("personal_email")) or login_email,
             company_email=clean_email(row.get("company_email")),
-            portal_access_enabled=bool(portal_access_enabled),
+            portal_access_enabled=True if portal_access_enabled is None else portal_access_enabled,
             status=parse_choice(
                 row.get("status"),
                 AGENT_STATUSES,

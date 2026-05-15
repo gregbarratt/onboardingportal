@@ -1,4 +1,4 @@
-import { Download, FileUp, Save, Search, Upload, UserPlus, X } from "lucide-react";
+import { CheckCircle2, Download, FileUp, Save, Search, Upload, UserPlus, X } from "lucide-react";
 import { useMemo, useState } from "react";
 import { Link } from "react-router-dom";
 
@@ -56,6 +56,10 @@ export default function AdminAgentListPage() {
   const [manualSaving, setManualSaving] = useState(false);
   const [manualError, setManualError] = useState("");
   const [manualMessage, setManualMessage] = useState("");
+  const [bulkSaving, setBulkSaving] = useState(false);
+  const [bulkError, setBulkError] = useState("");
+  const [bulkMessage, setBulkMessage] = useState("");
+  const [bulkResult, setBulkResult] = useState(null);
 
   const filteredAgents = useMemo(() => {
     const query = search.trim().toLowerCase();
@@ -125,6 +129,29 @@ export default function AdminAgentListPage() {
     }
   }
 
+  async function handleBulkAccessAndTrainingUpdate() {
+    const confirmed = window.confirm(
+      "This will enable portal login for every visible user and mark mandatory onboarding training complete for all visible agents. Further training will not be changed.",
+    );
+    if (!confirmed) return;
+
+    setBulkSaving(true);
+    setBulkError("");
+    setBulkMessage("");
+    setBulkResult(null);
+
+    try {
+      const result = await apiClient.post("/agents/bulk/enable-access-complete-onboarding-training", {}, token);
+      setBulkResult(result);
+      setBulkMessage(result.message || "Logins and onboarding training have been updated.");
+      await agents.reload();
+    } catch (err) {
+      setBulkError(getFriendlyError(err, "We could not update logins and onboarding training."));
+    } finally {
+      setBulkSaving(false);
+    }
+  }
+
   async function runStripeSyncBatches(startResult) {
     const agentIds = startResult.stripe_sync_agent_ids || [];
     if (!agentIds.length) return;
@@ -174,10 +201,11 @@ export default function AdminAgentListPage() {
         <ErrorBanner message={agents.error} />
         <ErrorBanner message={importError} />
         <ErrorBanner message={manualError} />
+        <ErrorBanner message={bulkError} />
 
-        {manualMessage ? (
+        {manualMessage || bulkMessage ? (
           <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-700">
-            {manualMessage}
+            {manualMessage || bulkMessage}
           </div>
         ) : null}
 
@@ -276,6 +304,24 @@ export default function AdminAgentListPage() {
               Use this for one-off agents. For a large list, keep using the CSV importer below.
             </p>
           )}
+        </Card>
+
+        <Card
+          title="Login and Onboarding Training Update"
+          description="Use this after importing existing agents. It switches on portal access and marks mandatory onboarding training complete only. Further training stays untouched."
+          actions={
+            <PrimaryButton type="button" icon={CheckCircle2} disabled={bulkSaving} onClick={handleBulkAccessAndTrainingUpdate}>
+              {bulkSaving ? "Updating..." : "Enable logins and complete onboarding training"}
+            </PrimaryButton>
+          }
+        >
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <ImportStat label="Users checked" value={bulkResult?.users_checked ?? 0} />
+            <ImportStat label="Users activated" value={bulkResult?.users_activated ?? 0} />
+            <ImportStat label="Agents checked" value={bulkResult?.agents_checked ?? 0} />
+            <ImportStat label="Logins enabled" value={bulkResult?.portal_access_enabled ?? 0} />
+            <ImportStat label="Onboarding training completed" value={bulkResult?.onboarding_training_completed ?? 0} />
+          </div>
         </Card>
 
         <Card
