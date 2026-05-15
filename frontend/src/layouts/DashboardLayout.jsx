@@ -42,11 +42,12 @@ const navItems = [
 ];
 
 const adminRoles = ["Super Admin", "Organisation Admin", "Admin", "Training Manager", "Compliance Manager"];
+const paymentAdminRoles = ["Super Admin", "Organisation Admin", "Admin"];
 
 const adminNavItems = [
   { label: "Admin Dashboard", to: "/admin", icon: UsersRound, end: true },
   { label: "Agent List", to: "/admin/agents", icon: UsersRound },
-  { label: "Payments Admin", to: "/admin/membership", icon: BriefcaseBusiness },
+  { label: "Payments Admin", to: "/admin/membership", icon: BriefcaseBusiness, paymentOnly: true },
   { label: "Onboarding Admin", to: "/admin/onboarding", icon: CheckSquare },
   { label: "Training Admin", to: "/admin/training", icon: GraduationCap },
   { label: "Live Sessions", to: "/admin/live-sessions", icon: CalendarCheck },
@@ -63,7 +64,9 @@ export default function DashboardLayout() {
   const { logout, token, user } = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const roleName = user?.role?.name || "User";
+  const roleDisplayName = roleName === "Training Manager" ? "Trainer" : roleName;
   const showAdmin = adminRoles.includes(roleName);
+  const canViewPaymentAdmin = paymentAdminRoles.includes(roleName);
 
   return (
     <div className="min-h-screen bg-[#edf8fc]">
@@ -78,7 +81,7 @@ export default function DashboardLayout() {
           </div>
         </div>
         <nav className="flex h-[calc(100vh-4rem)] flex-col gap-1 overflow-y-auto px-3 py-4">
-          <NavigationLinks showAdmin={showAdmin} />
+          <NavigationLinks showAdmin={showAdmin} canViewPaymentAdmin={canViewPaymentAdmin} />
         </nav>
       </aside>
 
@@ -112,7 +115,7 @@ export default function DashboardLayout() {
               </button>
             </div>
             <nav className="flex flex-1 flex-col gap-1 overflow-y-auto px-3 py-4">
-              <NavigationLinks showAdmin={showAdmin} onNavigate={() => setMobileNavOpen(false)} />
+              <NavigationLinks showAdmin={showAdmin} canViewPaymentAdmin={canViewPaymentAdmin} onNavigate={() => setMobileNavOpen(false)} />
             </nav>
           </aside>
         </div>
@@ -132,7 +135,7 @@ export default function DashboardLayout() {
             </button>
             <div>
               <p className="text-sm font-semibold text-white">Travel Agent Onboarding Hub</p>
-              <p className="text-xs text-white/75">{roleName}</p>
+              <p className="text-xs text-white/75">{roleDisplayName}</p>
             </div>
           </div>
           <div className="flex items-center gap-2">
@@ -389,7 +392,9 @@ function AlertItem({ notification, onOpen, onMarkRead }) {
   );
 }
 
-function NavigationLinks({ showAdmin, onNavigate }) {
+function NavigationLinks({ showAdmin, canViewPaymentAdmin, onNavigate }) {
+  const visibleAdminNavItems = adminNavItems.filter((item) => !item.paymentOnly || canViewPaymentAdmin);
+
   return (
     <>
       {navItems.map((item) => (
@@ -400,7 +405,7 @@ function NavigationLinks({ showAdmin, onNavigate }) {
           <div className="mt-4 border-t border-white/10 pt-4">
             <p className="px-3 text-xs font-semibold uppercase tracking-wide text-white/65">Admin</p>
           </div>
-          {adminNavItems.map((item) => (
+          {visibleAdminNavItems.map((item) => (
             <SidebarLink key={item.to} item={item} onNavigate={onNavigate} />
           ))}
         </>

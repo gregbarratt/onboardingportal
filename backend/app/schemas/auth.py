@@ -130,6 +130,16 @@ class UserOrganizationRead(BaseModel):
     model_config = ConfigDict(from_attributes=True)
 
 
+class UserAgentProfileRead(BaseModel):
+    id: int
+    agent_id: str
+    first_name: str
+    last_name: str
+    business_name: str | None = None
+
+    model_config = ConfigDict(from_attributes=True)
+
+
 class UserRead(BaseModel):
     id: int
     email: str
@@ -137,9 +147,14 @@ class UserRead(BaseModel):
     role: RoleRead
     organization_id: int | None = None
     organization: UserOrganizationRead | None = None
+    agent_profile: UserAgentProfileRead | None = None
     created_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class UserRoleUpdateRequest(BaseModel):
+    role_name: str = Field(min_length=1, max_length=100)
 
 
 class TokenResponse(BaseModel):

@@ -7,7 +7,14 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.api.deps import get_current_active_user
 from app.core.config import settings
-from app.core.roles import ADMIN_ROLE_NAMES, DEFAULT_ROLES
+from app.core.roles import (
+    ADMIN_ROLE_NAMES,
+    DEFAULT_ROLES,
+    ORGANIZATION_ASSIGNABLE_ROLE_NAMES,
+    SUPER_ADMIN_ASSIGNABLE_ROLE_NAMES,
+    USER_LEVEL_ADMIN_ROLE_NAMES,
+    canonical_role_name,
+)
 from app.db.session import get_db
 from app.models.role import Role
 from app.models.agent_profile import AgentProfile
@@ -25,11 +32,16 @@ from app.schemas.auth import (
     RegisterUserRequest,
     TokenResponse,
     UserRead,
+    UserRoleUpdateRequest,
 )
 from app.services.agent_ids import generate_next_agent_id
 from app.services.audit import create_audit_log
 from app.services.email import send_password_reset_email, smtp_is_configured
-from app.services.organizations import ensure_default_organization, user_can_access_organization
+from app.services.organizations import (
+    can_manage_all_organizations,
+    ensure_default_organization,
+    user_can_access_organization,
+)
 from app.services.onboarding_sync import sync_agent_onboarding_progress
 from app.services.passwords import hash_password, verify_password
 from app.services.password_reset import (
@@ -71,7 +83,7 @@ def ensure_default_roles(db: Session) -> dict[str, Role]:
 def get_user_by_email(db: Session, email: str) -> User | None:
     return db.scalar(
         select(User)
-        .options(selectinload(User.role), selectinload(User.organization))
+        .options(selectinload(User.role), selectinload(User.organization), selectinload(User.agent_profile))
         .where(User.email == email)
     )
 
@@ -79,9 +91,23 @@ def get_user_by_email(db: Session, email: str) -> User | None:
 def get_user_by_id(db: Session, user_id: int) -> User | None:
     return db.scalar(
         select(User)
-        .options(selectinload(User.role), selectinload(User.organization))
+        .options(selectinload(User.role), selectinload(User.organization), selectinload(User.agent_profile))
         .where(User.id == user_id)
     )
+
+
+def require_user_level_admin(current_user: User) -> None:
+    if current_user.role.name not in USER_LEVEL_ADMIN_ROLE_NAMES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only organisation admins can manage user levels.",
+        )
+
+
+def assignable_role_names_for(current_user: User) -> set[str]:
+    if can_manage_all_organizations(current_user):
+        return set(SUPER_ADMIN_ASSIGNABLE_ROLE_NAMES)
+    return set(ORGANIZATION_ASSIGNABLE_ROLE_NAMES)
 
 
 def current_user_can_reset_user(current_user: User, target_user: User) -> bool:
@@ -231,6 +257,93 @@ def register_agent_and_start_payment(
         "checkout_url": checkout_url,
         "message": "Registration created. Continue to Stripe to complete payment.",
     }
+
+
+@router.get("/users", response_model=list[UserRead])
+def list_portal_users(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> list[User]:
+    require_user_level_admin(current_user)
+
+    statement = select(User).options(
+        selectinload(User.role),
+        selectinload(User.organization),
+        selectinload(User.agent_profile),
+    )
+    if not can_manage_all_organizations(current_user):
+        statement = statement.where(User.organization_id == current_user.organization_id)
+
+    return list(db.scalars(statement.order_by(User.email)))
+
+
+@router.put("/users/{user_id}/role", response_model=UserRead)
+def update_portal_user_role(
+    user_id: int,
+    request: UserRoleUpdateRequest,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> User:
+    require_user_level_admin(current_user)
+
+    target_user = get_user_by_id(db, user_id)
+    if target_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="User account not found.",
+        )
+
+    if target_user.id == current_user.id:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="You cannot change your own user level from this screen.",
+        )
+
+    if not user_can_access_organization(current_user, target_user.organization_id):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only manage users in your organisation.",
+        )
+
+    requested_role_name = canonical_role_name(request.role_name)
+    if requested_role_name not in assignable_role_names_for(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="That user level is not available for your account.",
+        )
+
+    roles = ensure_default_roles(db)
+    new_role = roles.get(requested_role_name)
+    if new_role is None:
+        new_role = db.scalar(select(Role).where(Role.name == requested_role_name))
+    if new_role is None:
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="That user level does not exist yet.",
+        )
+
+    previous_role_name = target_user.role.name
+    target_user.role = new_role
+    agent_profile = db.scalar(select(AgentProfile).where(AgentProfile.user_id == target_user.id))
+    create_audit_log(
+        db,
+        action_type="Access level changed",
+        description=f"User level changed for {target_user.email}.",
+        previous_value=previous_role_name,
+        new_value=new_role.name,
+        created_by=current_user.id,
+        user_id=target_user.id,
+        agent_id=agent_profile.id if agent_profile else None,
+    )
+    db.commit()
+
+    updated_user = get_user_by_id(db, target_user.id)
+    if updated_user is None:
+        raise HTTPException(
+            status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
+            detail="User level was updated but the account could not be loaded.",
+        )
+    return updated_user
 
 
 @router.post("/password-reset/request", response_model=PasswordResetRequestResponse)

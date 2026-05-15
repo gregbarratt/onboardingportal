@@ -5,13 +5,14 @@ from sqlalchemy import select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.api.agents import check_agent_access, get_agent_or_404, is_admin_user
+from app.api.agents import get_agent_or_404, is_admin_user
 from app.api.deps import get_current_active_user
 from app.core.payment_statuses import (
     DEFAULT_MEMBERSHIP_PAYMENT_STATUS,
     DEFAULT_MEMBERSHIP_STATUS,
     DEFAULT_PAYMENT_STATUS,
 )
+from app.core.roles import PAYMENT_ADMIN_ROLE_NAMES
 from app.db.session import get_db
 from app.models.agent_profile import AgentProfile
 from app.models.membership import Membership
@@ -32,6 +33,7 @@ from app.schemas.membership import (
 )
 from app.services.audit import create_audit_log
 from app.services.onboarding_sync import sync_agent_onboarding_progress
+from app.services.organizations import user_can_access_organization
 from app.services.stripe import (
     StripeIntegrationError,
     create_billing_portal_session,
@@ -48,6 +50,26 @@ from app.services.stripe import (
 
 
 router = APIRouter(prefix="/agents", tags=["Memberships and Payments"])
+
+
+def is_payment_admin_user(user: User) -> bool:
+    return user.role.name in PAYMENT_ADMIN_ROLE_NAMES
+
+
+def check_agent_payment_access(agent_profile: AgentProfile, current_user: User) -> None:
+    if agent_profile.user_id == current_user.id:
+        return
+    if is_payment_admin_user(current_user) and user_can_access_organization(current_user, agent_profile.organization_id):
+        return
+    if is_payment_admin_user(current_user):
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="You can only access payment records in your organisation.",
+        )
+    raise HTTPException(
+        status_code=status.HTTP_403_FORBIDDEN,
+        detail="You do not have permission to view payment records.",
+    )
 
 
 def get_membership_for_agent(db: Session, agent_profile_id: int) -> Membership | None:
@@ -142,7 +164,7 @@ def get_agent_membership(
     current_user: User = Depends(get_current_active_user),
 ) -> Membership:
     agent_profile = get_agent_or_404(db, agent_profile_id)
-    check_agent_access(agent_profile, current_user)
+    check_agent_payment_access(agent_profile, current_user)
     return get_membership_or_404(db, agent_profile.id)
 
 
@@ -154,9 +176,9 @@ def update_agent_membership(
     current_user: User = Depends(get_current_active_user),
 ) -> Membership:
     agent_profile = get_agent_or_404(db, agent_profile_id)
-    check_agent_access(agent_profile, current_user)
+    check_agent_payment_access(agent_profile, current_user)
 
-    if not is_admin_user(current_user):
+    if not is_payment_admin_user(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can update membership and payment status.",
@@ -204,14 +226,14 @@ def create_or_link_stripe_customer(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> Membership:
-    if not is_admin_user(current_user):
+    if not is_payment_admin_user(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can connect an agent to Stripe.",
         )
 
     agent_profile = get_agent_or_404(db, agent_profile_id)
-    check_agent_access(agent_profile, current_user)
+    check_agent_payment_access(agent_profile, current_user)
     membership = get_or_create_membership_for_agent(db, agent_profile)
     if membership.stripe_customer_id:
         return membership
@@ -262,7 +284,7 @@ def create_agent_billing_portal_session(
     current_user: User = Depends(get_current_active_user),
 ) -> dict:
     agent_profile = get_agent_or_404(db, agent_profile_id)
-    check_agent_access(agent_profile, current_user)
+    check_agent_payment_access(agent_profile, current_user)
     membership = get_membership_or_404(db, agent_profile.id)
     if not membership.stripe_customer_id:
         raise HTTPException(
@@ -300,14 +322,14 @@ def search_agent_stripe_customers(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> list[dict]:
-    if not is_admin_user(current_user):
+    if not is_payment_admin_user(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can search Stripe customers.",
         )
 
     agent_profile = get_agent_or_404(db, agent_profile_id)
-    check_agent_access(agent_profile, current_user)
+    check_agent_payment_access(agent_profile, current_user)
     try:
         return search_stripe_customers_for_agent(agent_profile)
     except StripeIntegrationError as exc:
@@ -321,14 +343,14 @@ def link_existing_stripe_customer(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> Membership:
-    if not is_admin_user(current_user):
+    if not is_payment_admin_user(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can link an agent to Stripe.",
         )
 
     agent_profile = get_agent_or_404(db, agent_profile_id)
-    check_agent_access(agent_profile, current_user)
+    check_agent_payment_access(agent_profile, current_user)
     membership = get_or_create_membership_for_agent(db, agent_profile)
 
     existing_membership = db.scalar(
@@ -390,7 +412,7 @@ def list_agent_stripe_invoices(
     current_user: User = Depends(get_current_active_user),
 ) -> list[dict]:
     agent_profile = get_agent_or_404(db, agent_profile_id)
-    check_agent_access(agent_profile, current_user)
+    check_agent_payment_access(agent_profile, current_user)
     membership = get_membership_or_404(db, agent_profile.id)
     if not membership.stripe_customer_id:
         return []
@@ -407,14 +429,14 @@ def sync_agent_stripe_invoices(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> dict:
-    if not is_admin_user(current_user):
+    if not is_payment_admin_user(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can sync Stripe invoices.",
         )
 
     agent_profile = get_agent_or_404(db, agent_profile_id)
-    check_agent_access(agent_profile, current_user)
+    check_agent_payment_access(agent_profile, current_user)
     membership = get_membership_or_404(db, agent_profile.id)
     if not membership.stripe_customer_id:
         return {"synced_count": 0, "invoices": []}
@@ -447,7 +469,7 @@ def list_agent_stripe_subscriptions(
     current_user: User = Depends(get_current_active_user),
 ) -> list[dict]:
     agent_profile = get_agent_or_404(db, agent_profile_id)
-    check_agent_access(agent_profile, current_user)
+    check_agent_payment_access(agent_profile, current_user)
     membership = get_membership_or_404(db, agent_profile.id)
     if not membership.stripe_customer_id:
         return []
@@ -464,14 +486,14 @@ def sync_agent_stripe_subscription(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> dict:
-    if not is_admin_user(current_user):
+    if not is_payment_admin_user(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can sync Stripe subscriptions.",
         )
 
     agent_profile = get_agent_or_404(db, agent_profile_id)
-    check_agent_access(agent_profile, current_user)
+    check_agent_payment_access(agent_profile, current_user)
     membership = get_membership_or_404(db, agent_profile.id)
     if not membership.stripe_customer_id:
         return {"synced": False, "subscription": None}
@@ -506,9 +528,9 @@ def create_agent_payment(
     current_user: User = Depends(get_current_active_user),
 ) -> Payment:
     agent_profile: AgentProfile = get_agent_or_404(db, agent_profile_id)
-    check_agent_access(agent_profile, current_user)
+    check_agent_payment_access(agent_profile, current_user)
 
-    if not is_admin_user(current_user):
+    if not is_payment_admin_user(current_user):
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can create payment records.",
@@ -558,7 +580,7 @@ def list_agent_payments(
     current_user: User = Depends(get_current_active_user),
 ) -> list[Payment]:
     agent_profile = get_agent_or_404(db, agent_profile_id)
-    check_agent_access(agent_profile, current_user)
+    check_agent_payment_access(agent_profile, current_user)
     return list(
         db.scalars(
             select(Payment)

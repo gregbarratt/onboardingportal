@@ -31,7 +31,7 @@ def get_current_user(
 
     user = db.scalar(
         select(User)
-        .options(selectinload(User.role), selectinload(User.organization))
+        .options(selectinload(User.role), selectinload(User.organization), selectinload(User.agent_profile))
         .where(User.id == user_id)
     )
     if user is None:

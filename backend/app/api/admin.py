@@ -11,6 +11,7 @@ from app.api.agents import is_admin_user
 from app.api.deps import get_current_active_user
 from app.core.config import settings
 from app.core.compliance import REQUIRED_COMPLIANCE_DOCUMENT_TYPES
+from app.core.roles import PAYMENT_ADMIN_ROLE_NAMES
 from app.db.session import get_db
 from app.models.agent_profile import AgentProfile
 from app.models.certificate import Certificate
@@ -51,6 +52,14 @@ def require_admin_user(current_user: User) -> None:
         raise HTTPException(
             status_code=status.HTTP_403_FORBIDDEN,
             detail="Only admins can access this admin area.",
+        )
+
+
+def require_payment_admin_user(current_user: User) -> None:
+    if current_user.role.name not in PAYMENT_ADMIN_ROLE_NAMES:
+        raise HTTPException(
+            status_code=status.HTTP_403_FORBIDDEN,
+            detail="Only organisation admins can access payment records.",
         )
 
 
@@ -463,7 +472,7 @@ def list_admin_memberships(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> list[dict[str, Any]]:
-    require_admin_user(current_user)
+    require_payment_admin_user(current_user)
     rows = db.execute(
         apply_agent_scope(
             select(Membership, AgentProfile)

@@ -14,3 +14,37 @@ ADMIN_ROLE_NAMES = {
     "Training Manager",
     "Compliance Manager",
 }
+
+PAYMENT_ADMIN_ROLE_NAMES = {
+    "Super Admin",
+    "Organisation Admin",
+    "Admin",
+}
+
+USER_LEVEL_ADMIN_ROLE_NAMES = {
+    "Super Admin",
+    "Organisation Admin",
+    "Admin",
+}
+
+ORGANIZATION_ASSIGNABLE_ROLE_NAMES = {
+    "Agent",
+    "Training Manager",
+    "Admin",
+}
+
+SUPER_ADMIN_ASSIGNABLE_ROLE_NAMES = {
+    "Agent",
+    "Training Manager",
+    "Admin",
+    "Super Admin",
+}
+
+ROLE_ALIASES = {
+    "Trainer": "Training Manager",
+}
+
+
+def canonical_role_name(role_name: str) -> str:
+    cleaned = role_name.strip()
+    return ROLE_ALIASES.get(cleaned, cleaned)

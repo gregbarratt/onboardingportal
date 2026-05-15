@@ -40,9 +40,11 @@ import RegisterResultPage from "./pages/RegisterResultPage.jsx";
 import ResetPasswordPage from "./pages/ResetPasswordPage.jsx";
 
 const adminRoles = ["Super Admin", "Organisation Admin", "Admin", "Training Manager", "Compliance Manager"];
+const paymentAdminRoles = ["Super Admin", "Organisation Admin", "Admin"];
 
 export default function App() {
   const adminPage = (element) => <RoleGuard allowedRoles={adminRoles}>{element}</RoleGuard>;
+  const paymentAdminPage = (element) => <RoleGuard allowedRoles={paymentAdminRoles}>{element}</RoleGuard>;
 
   return (
     <Routes>
@@ -72,8 +74,8 @@ export default function App() {
           <Route path="/admin" element={adminPage(<AdminDashboardPage />)} />
           <Route path="/admin/agents" element={adminPage(<AdminAgentListPage />)} />
           <Route path="/admin/agents/:agentId" element={adminPage(<AdminAgentDetailPage />)} />
-          <Route path="/admin/membership" element={adminPage(<AdminMembershipPaymentsPage />)} />
-          <Route path="/admin/agents/:agentId/membership" element={adminPage(<AdminMembershipPaymentsPage />)} />
+          <Route path="/admin/membership" element={paymentAdminPage(<AdminMembershipPaymentsPage />)} />
+          <Route path="/admin/agents/:agentId/membership" element={paymentAdminPage(<AdminMembershipPaymentsPage />)} />
           <Route path="/admin/onboarding" element={adminPage(<AdminOnboardingManagementPage />)} />
           <Route path="/admin/agents/:agentId/onboarding" element={adminPage(<AdminOnboardingManagementPage />)} />
           <Route path="/admin/training" element={adminPage(<AdminTrainingModulesPage />)} />

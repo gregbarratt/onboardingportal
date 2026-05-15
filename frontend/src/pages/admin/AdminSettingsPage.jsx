@@ -1,4 +1,4 @@
-import { Building2, Mail, Plus, Send } from "lucide-react";
+import { Building2, Mail, Plus, Send, UsersRound } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 import { apiClient } from "../../api/client.js";
@@ -9,6 +9,7 @@ import {
   FormField,
   LoadingState,
   PrimaryButton,
+  SelectInput,
   StatusBadge,
   TextArea,
   TextInput,
@@ -24,21 +25,46 @@ const emptyOrganizationForm = {
   notes: "",
 };
 
+const teamManagerRoles = ["Super Admin", "Organisation Admin", "Admin"];
+const standardRoleOptions = [
+  { value: "Agent", label: "Agent" },
+  { value: "Training Manager", label: "Trainer" },
+  { value: "Admin", label: "Admin" },
+];
+const superAdminRoleOptions = [
+  ...standardRoleOptions,
+  { value: "Super Admin", label: "Super Admin" },
+];
+
+function roleLabel(roleName) {
+  if (roleName === "Training Manager") return "Trainer";
+  if (roleName === "Organisation Admin") return "Admin";
+  return roleName || "Not set";
+}
+
 export default function AdminSettingsPage() {
   const { token, user } = useAuth();
+  const isSuperAdmin = user?.role?.name === "Super Admin";
+  const canManageUserLevels = teamManagerRoles.includes(user?.role?.name);
   const organizations = useApiResource("/organizations", {
     fallbackError: "We could not load organisations.",
+    initialData: [],
+  });
+  const teamUsers = useApiResource("/auth/users", {
+    enabled: canManageUserLevels,
+    fallbackError: "We could not load team users.",
     initialData: [],
   });
   const [form, setForm] = useState(emptyOrganizationForm);
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState("");
+  const [userLevelError, setUserLevelError] = useState("");
+  const [updatingUserId, setUpdatingUserId] = useState(null);
   const [emailTestAddress, setEmailTestAddress] = useState(user?.email || "");
   const [testingEmail, setTestingEmail] = useState(false);
   const [emailTestMessage, setEmailTestMessage] = useState("");
   const [emailTestError, setEmailTestError] = useState("");
 
-  const isSuperAdmin = user?.role?.name === "Super Admin";
   const currentOrganization = useMemo(() => {
     if (user?.organization) return user.organization;
     return organizations.data?.find((item) => item.id === user?.organization_id) || null;
@@ -92,7 +118,31 @@ export default function AdminSettingsPage() {
     }
   }
 
-  if (organizations.loading) {
+  async function handleRoleChange(targetUser, nextRoleName) {
+    if (!nextRoleName || nextRoleName === targetUser.role?.name) return;
+
+    setUpdatingUserId(targetUser.id);
+    setUserLevelError("");
+
+    try {
+      await apiClient.put(`/auth/users/${targetUser.id}/role`, { role_name: nextRoleName }, token);
+      await teamUsers.reload();
+    } catch (err) {
+      setUserLevelError(getFriendlyError(err, "User level could not be updated."));
+    } finally {
+      setUpdatingUserId(null);
+    }
+  }
+
+  function roleOptionsFor(targetUser) {
+    const baseOptions = isSuperAdmin ? superAdminRoleOptions : standardRoleOptions;
+    if (!targetUser.role?.name || baseOptions.some((option) => option.value === targetUser.role.name)) {
+      return baseOptions;
+    }
+    return [...baseOptions, { value: targetUser.role.name, label: roleLabel(targetUser.role.name) }];
+  }
+
+  if (organizations.loading || (canManageUserLevels && teamUsers.loading)) {
     return (
       <AdminPageShell title="Settings" description="Manage portal rules and organisation access.">
         <LoadingState message="Loading settings..." />
@@ -105,6 +155,8 @@ export default function AdminSettingsPage() {
       <div className="space-y-6">
         <ErrorBanner message={organizations.error} />
         <ErrorBanner message={saveError} />
+        <ErrorBanner message={teamUsers.error} />
+        <ErrorBanner message={userLevelError} />
         <ErrorBanner message={emailTestError} />
         {emailTestMessage ? <div className="rounded-lg border border-emerald-200 bg-emerald-50 p-4 text-sm font-medium text-emerald-700">{emailTestMessage}</div> : null}
 
@@ -125,13 +177,77 @@ export default function AdminSettingsPage() {
 
           <Card title="Portal Access Rules">
             <dl className="space-y-4 text-sm">
-              <Rule label="Super Admin" value="Can see every organisation and every agent." />
-              <Rule label="Organisation Admin" value="Can manage one organisation and its agents." />
-              <Rule label="Admin roles" value="Stay inside their own organisation." />
-              <Rule label="Agents" value="Only see their own portal record." />
+              <Rule label="Agent" value="Can only use their own agent portal." />
+              <Rule label="Trainer" value="Can manage training and onboarding, but cannot see payment admin." />
+              <Rule label="Admin" value="Can manage the full organisation, including payments." />
+              <Rule label="Super Admin" value="Can manage every organisation and every user." />
             </dl>
           </Card>
         </div>
+
+        {canManageUserLevels ? (
+          <Card
+            title="Team User Levels"
+            description={isSuperAdmin ? "Change an existing portal user to Agent, Trainer, Admin, or Super Admin." : "Change an existing portal user to Agent, Trainer, or Admin."}
+            actions={
+              <span className="rounded-lg bg-sky-50 p-2 text-sky-700">
+                <UsersRound className="h-5 w-5" aria-hidden="true" />
+              </span>
+            }
+          >
+            <DataTable
+              rows={teamUsers.data || []}
+              emptyMessage="No users have been created yet."
+              columns={[
+                {
+                  key: "user",
+                  label: "User",
+                  render: (row) => (
+                    <div>
+                      <p className="font-semibold text-slate-950">
+                        {row.agent_profile ? `${row.agent_profile.first_name} ${row.agent_profile.last_name}` : row.email}
+                      </p>
+                      <p className="text-xs text-slate-500">{row.email}</p>
+                    </div>
+                  ),
+                },
+                {
+                  key: "role",
+                  label: "User level",
+                  render: (row) =>
+                    row.id === user?.id ? (
+                      <div className="space-y-1">
+                        <StatusBadge status={roleLabel(row.role?.name)} />
+                        <p className="text-xs text-slate-500">Your own level</p>
+                      </div>
+                    ) : (
+                      <SelectInput
+                        value={row.role?.name || ""}
+                        disabled={updatingUserId === row.id}
+                        onChange={(event) => handleRoleChange(row, event.target.value)}
+                      >
+                        {roleOptionsFor(row).map((option) => (
+                          <option key={option.value} value={option.value}>
+                            {option.label}
+                          </option>
+                        ))}
+                      </SelectInput>
+                    ),
+                },
+                {
+                  key: "organization",
+                  label: "Organisation",
+                  render: (row) => row.organization?.name || "Not set",
+                },
+                {
+                  key: "status",
+                  label: "Status",
+                  render: (row) => <StatusBadge status={row.is_active ? "Active" : "Inactive"} />,
+                },
+              ]}
+            />
+          </Card>
+        ) : null}
 
         <Card title="Email Test" description="Send a test email from the same mailbox used for password resets.">
           <form onSubmit={handleSendEmailTest} className="grid gap-4 lg:grid-cols-[1fr_auto] lg:items-end">
