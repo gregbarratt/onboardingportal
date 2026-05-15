@@ -112,6 +112,8 @@ def build_certificate_svg(
     issued_date = certificate.issued_date.strftime("%d %B %Y")
     certificate_id = f"OTC-CERT-{certificate.id:08d}"
     course_code = f"OTC-{training_module.id:04d}"
+    instructor_name = settings.certificate_instructor_name or "Nikki Bishop"
+    authorized_signatory = settings.certificate_authorized_signatory or "G Barratt"
     template_data = certificate_template_data_uri()
     name_lines = split_for_svg(name, 30)
     module_lines = split_for_svg(module_title, 38)
@@ -123,9 +125,14 @@ def build_certificate_svg(
   <rect x="130" y="560" width="764" height="70" fill="#f7f0d9" opacity="0.96" />
   <rect x="430" y="716" width="180" height="36" fill="#f7f0d9" opacity="0.96" />
   <rect x="285" y="930" width="465" height="36" fill="#f7f0d9" opacity="0.96" />
+  <rect x="215" y="780" width="230" height="30" fill="#f7f0d9" opacity="0.96" />
+  <rect x="705" y="780" width="185" height="30" fill="#f7f0d9" opacity="0.96" />
   {svg_centered_text(name_lines, 512, 485, 34, 38, "#082f49", "Georgia, 'Times New Roman', serif", "700")}
   {svg_centered_text(module_lines, 512, 592, 30, 34, "#111111", "Georgia, 'Times New Roman', serif", "700")}
   <text x="512" y="746" text-anchor="middle" fill="#111111" font-family="Georgia, 'Times New Roman', serif" font-size="24">Date: {escape_xml(issued_date)}</text>
+  <text x="330" y="803" text-anchor="middle" fill="#111111" font-family="Georgia, 'Times New Roman', serif" font-size="21">{escape_xml(instructor_name)}</text>
+  <text x="795" y="803" text-anchor="middle" fill="#111111" font-family="Georgia, 'Times New Roman', serif" font-size="21">{escape_xml(authorized_signatory)}</text>
+  <text x="512" y="878" text-anchor="middle" fill="#082f49" font-family="'Brush Script MT', 'Segoe Script', 'Lucida Handwriting', cursive" font-size="42">{escape_xml(authorized_signatory)}</text>
   <text x="512" y="956" text-anchor="middle" fill="#111111" font-family="Georgia, 'Times New Roman', serif" font-size="17">Course Code: {escape_xml(course_code)} &#160; Certificate ID: {escape_xml(certificate_id)}</text>
 </svg>
 """

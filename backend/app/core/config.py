@@ -33,6 +33,8 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from_email: str = ""
     smtp_use_tls: bool = True
+    certificate_instructor_name: str = "Nikki Bishop"
+    certificate_authorized_signatory: str = "G Barratt"
     initial_admin_email: str = ""
     initial_admin_password: str = ""
 
