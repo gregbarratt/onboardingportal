@@ -18,6 +18,7 @@ from app.models.compliance import PolicyAcceptance
 from app.models.document import Document
 from app.models.live_training import AttendanceLog, LiveTrainingSession
 from app.models.membership import Membership
+from app.models.onboarding import AgentOnboardingProgress, OnboardingStep
 from app.models.training import AgentTrainingProgress, TrainingModule
 from app.models.user import User
 from app.services.email import send_test_email, smtp_is_configured
@@ -170,6 +171,107 @@ def document_summary(document: Document, agent: AgentProfile) -> dict[str, Any]:
     }
 
 
+def agent_name(agent: AgentProfile) -> str:
+    return f"{agent.first_name} {agent.last_name}".strip() or agent.agent_id
+
+
+def approval_queue_item(
+    item_id: str,
+    item_type: str,
+    title: str,
+    agent: AgentProfile,
+    status: str,
+    detail: str,
+    link_url: str,
+    created_at,
+) -> dict[str, Any]:
+    return {
+        "id": item_id,
+        "item_type": item_type,
+        "title": title,
+        "agent_id": agent.id,
+        "agent_reference": agent.agent_id,
+        "agent_name": agent_name(agent),
+        "agent_email": agent.email,
+        "status": status,
+        "detail": detail,
+        "link_url": link_url,
+        "created_at": created_at,
+    }
+
+
+def build_approval_queue(db: Session, current_user: User, agents: list[AgentProfile]) -> list[dict[str, Any]]:
+    agent_ids = [agent.id for agent in agents]
+    if not agent_ids:
+        return []
+
+    document_rows = db.execute(
+        apply_agent_scope(
+            select(Document, AgentProfile)
+            .join(AgentProfile, Document.agent_id == AgentProfile.id)
+            .where(Document.status.in_(["Uploaded", "Awaiting Review"]))
+            .order_by(Document.created_at.desc(), Document.id.desc()),
+            current_user,
+        )
+    ).all()
+    document_items = [
+        approval_queue_item(
+            item_id=f"document-{document.id}",
+            item_type="Document Review",
+            title=document.document_type,
+            agent=agent,
+            status=document.status,
+            detail=f"{document.file_name or 'Document'} needs verifying or rejecting.",
+            link_url="/admin/documents",
+            created_at=document.created_at,
+        )
+        for document, agent in document_rows
+    ]
+
+    onboarding_rows = db.execute(
+        apply_agent_scope(
+            select(AgentOnboardingProgress, OnboardingStep, AgentProfile)
+            .join(OnboardingStep, AgentOnboardingProgress.step_id == OnboardingStep.id)
+            .join(AgentProfile, AgentOnboardingProgress.agent_id == AgentProfile.id)
+            .where(AgentOnboardingProgress.completion_status == "Awaiting Review")
+            .order_by(AgentOnboardingProgress.updated_at.desc(), AgentOnboardingProgress.id.desc()),
+            current_user,
+        )
+    ).all()
+    onboarding_items = [
+        approval_queue_item(
+            item_id=f"onboarding-{progress.id}",
+            item_type="Onboarding Approval",
+            title=step.title,
+            agent=agent,
+            status=progress.completion_status,
+            detail="Checklist item is waiting for admin approval.",
+            link_url=f"/admin/agents/{agent.id}/onboarding",
+            created_at=progress.updated_at,
+        )
+        for progress, step, agent in onboarding_rows
+    ]
+
+    final_approval_items = [
+        approval_queue_item(
+            item_id=f"final-approval-{agent.id}",
+            item_type="Final Approval",
+            title="Approve to Trade",
+            agent=agent,
+            status=agent.status,
+            detail="Agent is waiting for the final trading approval decision.",
+            link_url=f"/admin/agents/{agent.id}",
+            created_at=agent.updated_at,
+        )
+        for agent in agents
+        if agent.status == "Awaiting Final Approval"
+    ]
+
+    approval_items = document_items + onboarding_items + final_approval_items
+    approval_items.sort(key=lambda item: item["created_at"].isoformat() if item["created_at"] else "", reverse=True)
+    return approval_items
+
+
 def session_summary(session: LiveTrainingSession) -> dict[str, Any]:
     return {
         "id": session.id,
@@ -257,6 +359,7 @@ def get_admin_dashboard_summary(
             "missing_document_agents_count": 0,
             "expired_compliance_training_count": 0,
             "approval_queue": [],
+            "approval_queue_total": 0,
         }
 
     failed_payments = db.scalar(
@@ -333,11 +436,7 @@ def get_admin_dashboard_summary(
         )
     ) or 0
 
-    approval_queue = [
-        agent_summary(agent)
-        for agent in agents
-        if agent.status in {"Awaiting Final Approval", "Compliance Hold", "Payment Pending"}
-    ][:6]
+    approval_queue = build_approval_queue(db, current_user, agents)
 
     return {
         "total_agents": len(agents),
@@ -354,7 +453,8 @@ def get_admin_dashboard_summary(
         "policy_acceptance_count": policy_acceptance_count,
         "missing_document_agents_count": missing_document_agents_count,
         "expired_compliance_training_count": expired_compliance_training_count,
-        "approval_queue": approval_queue,
+        "approval_queue": approval_queue[:12],
+        "approval_queue_total": len(approval_queue),
     }
 
 

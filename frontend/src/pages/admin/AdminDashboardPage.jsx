@@ -30,6 +30,7 @@ export default function AdminDashboardPage() {
 
   const stats = dashboard.data || {};
   const approvalQueue = stats.approval_queue || [];
+  const approvalQueueTotal = stats.approval_queue_total || approvalQueue.length;
 
   return (
     <AdminPageShell title="Admin Dashboard" description="Monitor agent onboarding, payments, calls, training, documents, and compliance from one place.">
@@ -50,19 +51,30 @@ export default function AdminDashboardPage() {
         </div>
 
         <div className="grid gap-6 xl:grid-cols-[1fr_1fr]">
-          <Card title="Approval Queue" description="Agents waiting for review or final trading approval.">
+          <Card title="Admin Approval Queue" description="Documents, checklist items, and final approval tasks waiting for an admin decision.">
             <div className="space-y-3">
-              {approvalQueue.map((agent) => (
-                  <Link key={agent.id} to={`/admin/agents/${agent.id}`} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 p-3 hover:bg-slate-50">
-                    <div>
-                      <p className="font-medium text-slate-950">{agent.first_name} {agent.last_name}</p>
-                      <p className="text-sm text-slate-500">{agent.email}</p>
+              {approvalQueueTotal ? (
+                <p className="text-sm font-medium text-slate-600">
+                  {approvalQueueTotal} approval item{approvalQueueTotal === 1 ? "" : "s"} waiting.
+                </p>
+              ) : null}
+              {approvalQueue.map((item) => (
+                  <Link key={item.id} to={item.link_url || "/admin"} className="flex items-center justify-between gap-3 rounded-lg border border-slate-200 p-3 hover:bg-slate-50">
+                    <div className="min-w-0">
+                      <div className="flex flex-wrap items-center gap-2">
+                        <p className="font-medium text-slate-950">{item.title}</p>
+                        <span className="rounded-full bg-amber-50 px-2 py-0.5 text-xs font-semibold text-amber-700 ring-1 ring-amber-200">
+                          {item.item_type}
+                        </span>
+                      </div>
+                      <p className="mt-1 text-sm text-slate-600">{item.agent_name} · {item.agent_email}</p>
+                      <p className="mt-1 text-xs text-slate-500">{item.detail}</p>
                     </div>
-                    <StatusBadge status={agent.status} />
+                    <StatusBadge status={item.status} />
                   </Link>
                 ))}
               {!approvalQueue.length ? (
-                <p className="text-sm text-slate-600">No urgent approval items are visible yet.</p>
+                <p className="text-sm text-slate-600">No approval items are waiting right now.</p>
               ) : null}
             </div>
           </Card>

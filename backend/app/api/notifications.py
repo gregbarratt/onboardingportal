@@ -10,6 +10,7 @@ from app.db.session import get_db
 from app.models.notification import Notification
 from app.models.user import User
 from app.schemas.notification import NotificationCreate, NotificationRead
+from app.services.notifications import ensure_pending_document_review_notifications_for_user
 
 
 router = APIRouter(tags=["Notifications"])
@@ -48,9 +49,12 @@ def list_notifications(
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> list[Notification]:
-    query = select(Notification).order_by(Notification.created_at.desc(), Notification.id.desc())
-    if not is_admin_user(current_user):
-        query = query.where(Notification.recipient_user_id == current_user.id)
+    ensure_pending_document_review_notifications_for_user(db, current_user)
+    query = (
+        select(Notification)
+        .where(Notification.recipient_user_id == current_user.id)
+        .order_by(Notification.created_at.desc(), Notification.id.desc())
+    )
     return list(db.scalars(query))
 
 

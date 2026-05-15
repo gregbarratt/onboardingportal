@@ -17,6 +17,7 @@ from app.db.session import get_db
 from app.models.document import Document
 from app.models.user import User
 from app.schemas.document import DocumentCreate, DocumentFileUploadCreate, DocumentRead, DocumentReviewRequest
+from app.services.notifications import create_document_review_notifications
 from app.services.onboarding_sync import sync_agent_onboarding_progress
 
 
@@ -130,6 +131,7 @@ def create_agent_document(
     )
     db.add(document)
     db.flush()
+    create_document_review_notifications(db, agent_profile, document, created_by=current_user.id)
     sync_agent_onboarding_progress(db, agent_profile, actor_user_id=current_user.id)
     db.commit()
     db.refresh(document)
@@ -170,6 +172,7 @@ def upload_agent_document(
     )
     db.add(document)
     db.flush()
+    create_document_review_notifications(db, agent_profile, document, created_by=current_user.id)
     sync_agent_onboarding_progress(db, agent_profile, actor_user_id=current_user.id)
     db.commit()
     db.refresh(document)
