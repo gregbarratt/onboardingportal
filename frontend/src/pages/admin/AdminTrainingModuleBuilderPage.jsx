@@ -19,6 +19,9 @@ import { getFriendlyError, useApiResource } from "../../hooks/useAgentPortalData
 import { trainingPublishedStatuses, trainingTracks } from "./adminConstants.js";
 import AdminPageShell, { AdminLinkButton } from "./AdminPageShell.jsx";
 
+const MAX_TRAINING_UPLOAD_SIZE_MB = 100;
+const MAX_TRAINING_UPLOAD_SIZE_BYTES = MAX_TRAINING_UPLOAD_SIZE_MB * 1024 * 1024;
+
 const blankModule = {
   title: "",
   description: "",
@@ -232,6 +235,12 @@ export default function AdminTrainingModuleBuilderPage() {
     }
     if (file.size <= 0) {
       setError("This file looks empty. Please choose the correct training file and try again.");
+      return;
+    }
+    if (file.size > MAX_TRAINING_UPLOAD_SIZE_BYTES) {
+      setError(
+        `${file.name} is ${formatFileSize(file.size)}. Training uploads are currently limited to ${MAX_TRAINING_UPLOAD_SIZE_MB}MB so Render does not run out of memory. Please compress the video or use a hosted video embed.`,
+      );
       return;
     }
 
@@ -518,6 +527,7 @@ export default function AdminTrainingModuleBuilderPage() {
 function MaterialUpload({ title, icon: Icon, accept, disabled, saved, onUpload }) {
   const [file, setFile] = useState(null);
   const [uploading, setUploading] = useState(false);
+  const fileTooLarge = Boolean(file && file.size > MAX_TRAINING_UPLOAD_SIZE_BYTES);
 
   async function handleUpload() {
     if (!file) return;
@@ -546,13 +556,28 @@ function MaterialUpload({ title, icon: Icon, accept, disabled, saved, onUpload }
         onChange={(event) => setFile(event.target.files?.[0] || null)}
         className="block w-full rounded-lg border border-slate-300 px-3 py-2 text-sm text-slate-900 shadow-sm file:mr-4 file:rounded-md file:border-0 file:bg-sky-50 file:px-3 file:py-1.5 file:text-sm file:font-semibold file:text-sky-700 hover:file:bg-sky-100 disabled:cursor-not-allowed disabled:bg-slate-50"
       />
+      {file ? (
+        <p className={`mt-2 text-xs ${fileTooLarge ? "text-rose-700" : "text-slate-500"}`}>
+          Selected file: {formatFileSize(file.size)}
+          {fileTooLarge ? ` - maximum ${MAX_TRAINING_UPLOAD_SIZE_MB}MB on this hosting plan.` : ""}
+        </p>
+      ) : null}
       <div className="mt-3">
-        <SecondaryButton type="button" icon={Upload} disabled={disabled || uploading || !file} onClick={handleUpload}>
+        <SecondaryButton type="button" icon={Upload} disabled={disabled || uploading || !file || fileTooLarge} onClick={handleUpload}>
           {uploading ? "Uploading..." : `Upload ${title}`}
         </SecondaryButton>
       </div>
     </div>
   );
+}
+
+function formatFileSize(sizeInBytes) {
+  if (!Number.isFinite(sizeInBytes)) return "0 MB";
+  const sizeInMb = sizeInBytes / (1024 * 1024);
+  if (sizeInMb < 1) {
+    return `${Math.max(sizeInBytes / 1024, 0).toFixed(1)} KB`;
+  }
+  return `${sizeInMb.toFixed(1)} MB`;
 }
 
 function Checkbox({ label, checked, onChange }) {

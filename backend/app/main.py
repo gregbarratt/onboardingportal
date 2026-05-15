@@ -1,5 +1,6 @@
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from app.api.audit import router as audit_router
@@ -34,6 +35,26 @@ app.add_middleware(
     allow_methods=["*"],
     allow_headers=["*"],
 )
+
+
+@app.middleware("http")
+async def reject_oversized_requests(request, call_next):
+    content_length = request.headers.get("content-length")
+    if content_length:
+        try:
+            request_size = int(content_length)
+        except ValueError:
+            request_size = 0
+        if request_size > settings.max_upload_size_bytes:
+            return JSONResponse(
+                status_code=413,
+                content={
+                    "detail": f"Uploads must be {settings.max_upload_size_mb}MB or smaller. Please compress the file or use a hosted video embed."
+                },
+            )
+
+    return await call_next(request)
+
 
 settings.upload_dir.mkdir(parents=True, exist_ok=True)
 app.mount("/uploaded-files", StaticFiles(directory=settings.upload_dir), name="uploaded_files")
