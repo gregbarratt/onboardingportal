@@ -18,10 +18,12 @@ import {
   UsersRound,
   X,
 } from "lucide-react";
-import { useState } from "react";
-import { NavLink, Outlet } from "react-router-dom";
+import { useCallback, useEffect, useMemo, useState } from "react";
+import { Link, NavLink, Outlet } from "react-router-dom";
 
+import { apiClient } from "../api/client.js";
 import { useAuth } from "../context/AuthContext.jsx";
+import { formatDateTime } from "../utils/formatters.js";
 
 const navItems = [
   { label: "Dashboard", to: "/dashboard", icon: LayoutDashboard },
@@ -57,7 +59,7 @@ const adminNavItems = [
 ];
 
 export default function DashboardLayout() {
-  const { logout, user } = useAuth();
+  const { logout, token, user } = useAuth();
   const [mobileNavOpen, setMobileNavOpen] = useState(false);
   const roleName = user?.role?.name || "User";
   const showAdmin = adminRoles.includes(roleName);
@@ -133,13 +135,7 @@ export default function DashboardLayout() {
             </div>
           </div>
           <div className="flex items-center gap-2">
-            <button
-              type="button"
-              className="focus-ring hidden items-center gap-2 rounded-lg border border-[#c6a56e] px-3 py-2 text-sm font-semibold text-[#f5dca9] transition hover:bg-white/10 sm:inline-flex"
-            >
-              <Bell size={16} />
-              Alerts
-            </button>
+            <AlertsButton token={token} />
             <button
               type="button"
               onClick={logout}
@@ -156,6 +152,172 @@ export default function DashboardLayout() {
         </main>
       </div>
     </div>
+  );
+}
+
+function AlertsButton({ token }) {
+  const [open, setOpen] = useState(false);
+  const [notifications, setNotifications] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+
+  const unreadCount = useMemo(() => notifications.filter((notification) => !notification.read).length, [notifications]);
+  const visibleNotifications = useMemo(() => notifications.slice(0, 8), [notifications]);
+
+  const loadNotifications = useCallback(
+    async (silent = false) => {
+      if (!token) return;
+      if (!silent) setLoading(true);
+      setError("");
+
+      try {
+        const result = await apiClient.get("/notifications", token);
+        setNotifications(Array.isArray(result) ? result : []);
+      } catch (err) {
+        setError(err?.message || "Alerts could not be loaded.");
+      } finally {
+        if (!silent) setLoading(false);
+      }
+    },
+    [token],
+  );
+
+  useEffect(() => {
+    loadNotifications();
+    const refreshTimer = window.setInterval(() => loadNotifications(true), 60000);
+    return () => window.clearInterval(refreshTimer);
+  }, [loadNotifications]);
+
+  async function markAsRead(notification) {
+    if (notification.read) return;
+
+    try {
+      const updated = await apiClient.post(`/notifications/${notification.id}/read`, {}, token);
+      setNotifications((current) => current.map((item) => (item.id === updated.id ? updated : item)));
+    } catch (err) {
+      setError(err?.message || "This alert could not be marked as read.");
+    }
+  }
+
+  async function markAllRead() {
+    const unreadNotifications = notifications.filter((notification) => !notification.read);
+    if (!unreadNotifications.length) return;
+
+    try {
+      const updatedNotifications = await Promise.all(
+        unreadNotifications.map((notification) => apiClient.post(`/notifications/${notification.id}/read`, {}, token)),
+      );
+      const updatedById = new Map(updatedNotifications.map((notification) => [notification.id, notification]));
+      setNotifications((current) => current.map((item) => updatedById.get(item.id) || item));
+    } catch (err) {
+      setError(err?.message || "Alerts could not be marked as read.");
+    }
+  }
+
+  return (
+    <div className="relative">
+      <button
+        type="button"
+        onClick={() => setOpen((current) => !current)}
+        className="focus-ring relative inline-flex items-center gap-2 rounded-lg border border-[#c6a56e] px-3 py-2 text-sm font-semibold text-[#f5dca9] transition hover:bg-white/10"
+      >
+        <Bell size={16} />
+        <span className="hidden sm:inline">Alerts</span>
+        {unreadCount ? (
+          <span className="absolute -right-2 -top-2 inline-flex h-5 min-w-5 items-center justify-center rounded-full bg-[#b34d2b] px-1 text-xs font-bold text-white ring-2 ring-[#172334]">
+            {unreadCount > 9 ? "9+" : unreadCount}
+          </span>
+        ) : null}
+      </button>
+
+      {open ? (
+        <div className="absolute right-0 top-full z-30 mt-2 w-96 max-w-[calc(100vw-2rem)] overflow-hidden rounded-lg border border-slate-200 bg-white text-slate-900 shadow-2xl">
+          <div className="flex items-center justify-between gap-3 border-b border-slate-200 px-4 py-3">
+            <div>
+              <p className="text-sm font-semibold text-slate-950">Portal alerts</p>
+              <p className="text-xs text-slate-500">{unreadCount ? `${unreadCount} unread alert${unreadCount === 1 ? "" : "s"}` : "No unread alerts"}</p>
+            </div>
+            <button
+              type="button"
+              onClick={markAllRead}
+              disabled={!unreadCount}
+              className="rounded-md px-2 py-1 text-xs font-semibold text-[#b34d2b] transition hover:bg-orange-50 disabled:cursor-not-allowed disabled:text-slate-400"
+            >
+              Mark all read
+            </button>
+          </div>
+
+          <div className="max-h-[70vh] overflow-y-auto">
+            {loading ? (
+              <div className="p-4 text-sm text-slate-600">Loading alerts...</div>
+            ) : error ? (
+              <div className="m-3 rounded-lg border border-rose-200 bg-rose-50 p-3 text-sm text-rose-700">{error}</div>
+            ) : visibleNotifications.length ? (
+              <div className="divide-y divide-slate-100">
+                {visibleNotifications.map((notification) => (
+                  <AlertItem
+                    key={notification.id}
+                    notification={notification}
+                    onOpen={() => {
+                      void markAsRead(notification);
+                      setOpen(false);
+                    }}
+                    onMarkRead={() => markAsRead(notification)}
+                  />
+                ))}
+              </div>
+            ) : (
+              <div className="p-5 text-sm text-slate-600">
+                <p className="font-semibold text-slate-900">No alerts yet</p>
+                <p className="mt-1">Payment issues, training reminders, document reviews, calls, compliance items, and approval notices will appear here.</p>
+              </div>
+            )}
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
+
+function AlertItem({ notification, onOpen, onMarkRead }) {
+  const content = (
+    <div className={`block w-full px-4 py-3 text-left transition ${notification.read ? "bg-white hover:bg-slate-50" : "bg-orange-50/60 hover:bg-orange-50"}`}>
+      <div className="flex items-start gap-3">
+        <span className={`mt-1 h-2.5 w-2.5 rounded-full ${notification.read ? "bg-slate-300" : "bg-[#b34d2b]"}`} />
+        <div className="min-w-0 flex-1">
+          <div className="flex items-start justify-between gap-3">
+            <p className="text-sm font-semibold text-slate-950">{notification.title}</p>
+            <span className="shrink-0 rounded-full bg-slate-100 px-2 py-0.5 text-[11px] font-semibold text-slate-600">
+              {notification.notification_type}
+            </span>
+          </div>
+          <p className="mt-1 text-sm text-slate-600">{notification.message}</p>
+          <p className="mt-2 text-xs text-slate-400">{formatDateTime(notification.created_at)}</p>
+        </div>
+      </div>
+    </div>
+  );
+
+  if (notification.link_url?.startsWith("/")) {
+    return (
+      <Link to={notification.link_url} onClick={onOpen}>
+        {content}
+      </Link>
+    );
+  }
+
+  if (notification.link_url) {
+    return (
+      <a href={notification.link_url} onClick={onOpen}>
+        {content}
+      </a>
+    );
+  }
+
+  return (
+    <button type="button" onClick={onMarkRead} className="block w-full">
+      {content}
+    </button>
   );
 }
 
