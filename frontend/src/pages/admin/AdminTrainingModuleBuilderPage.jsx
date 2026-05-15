@@ -379,7 +379,7 @@ export default function AdminTrainingModuleBuilderPage() {
               <div className="md:col-span-2 flex flex-wrap gap-5">
                 <Checkbox label="Mandatory" checked={form.mandatory} onChange={(value) => update("mandatory", value)} />
                 <Checkbox label="Quiz required" checked={form.quiz_required} onChange={(value) => update("quiz_required", value)} />
-                <Checkbox label="Certificate issued" checked={form.certificate_issued} onChange={(value) => update("certificate_issued", value)} />
+                <Checkbox label="Auto-generate certificate on completion" checked={form.certificate_issued} onChange={(value) => update("certificate_issued", value)} />
                 <Checkbox label="Renewal required" checked={form.renewal_required} onChange={(value) => update("renewal_required", value)} />
               </div>
             </div>

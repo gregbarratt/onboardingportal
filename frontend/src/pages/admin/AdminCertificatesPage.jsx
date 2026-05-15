@@ -1,4 +1,4 @@
-import { Ban, Clock, Plus } from "lucide-react";
+import { Ban, Clock, ExternalLink, Plus } from "lucide-react";
 import { useState } from "react";
 
 import { Card, DataTable, ErrorBanner, FormField, LoadingState, PrimaryButton, SelectInput, StatusBadge, TextInput } from "../../components/ui.jsx";
@@ -141,6 +141,19 @@ export default function AdminCertificatesPage() {
               { key: "issued_date", label: "Issued", render: (row) => formatDate(row.issued_date) },
               { key: "expiry_date", label: "Expiry", render: (row) => formatDate(row.expiry_date) },
               { key: "status", label: "Status", render: (row) => <StatusBadge status={row.status} /> },
+              {
+                key: "certificate_url",
+                label: "File",
+                render: (row) =>
+                  row.certificate_url ? (
+                    <a className="inline-flex items-center gap-1 font-semibold text-sky-700 hover:text-sky-900" href={row.certificate_url} target="_blank" rel="noreferrer">
+                      Open
+                      <ExternalLink className="h-4 w-4" aria-hidden="true" />
+                    </a>
+                  ) : (
+                    "Not set"
+                  ),
+              },
               {
                 key: "actions",
                 label: "Actions",

@@ -47,6 +47,7 @@ from app.schemas.training import (
     TrainingQuizSubmitRequest,
     TrainingRedoRequest,
 )
+from app.services.certificate_generator import issue_training_certificate
 from app.services.onboarding_sync import sync_agent_onboarding_progress
 
 
@@ -754,6 +755,7 @@ def list_my_training_quiz_attempts(
 def submit_training_quiz_attempt(
     module_id: int,
     request: TrainingQuizSubmitRequest,
+    http_request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> TrainingQuizAttempt:
@@ -833,8 +835,16 @@ def submit_training_quiz_attempt(
     progress.passed = passed
     progress.progress_status = "Complete" if passed else "Failed"
     progress.completed_date = date.today() if passed else None
-    if passed and training_module.certificate_issued:
-        progress.certificate_issued = True
+    if passed:
+        certificate = issue_training_certificate(
+            db,
+            agent_profile,
+            training_module,
+            public_base_url=str(http_request.base_url).rstrip("/"),
+        )
+        if certificate is not None:
+            progress.expiry_date = certificate.expiry_date
+            progress.certificate_issued = True
 
     db.flush()
     sync_agent_onboarding_progress(db, agent_profile, actor_user_id=current_user.id)
@@ -851,6 +861,7 @@ def update_agent_training_progress(
     agent_profile_id: int,
     progress_id: int,
     request: AgentTrainingProgressUpdate,
+    http_request: Request,
     db: Session = Depends(get_db),
     current_user: User = Depends(get_current_active_user),
 ) -> AgentTrainingProgress:
@@ -891,6 +902,17 @@ def update_agent_training_progress(
 
     for field, value in update_data.items():
         setattr(progress, field, value)
+
+    if progress.progress_status == "Complete":
+        certificate = issue_training_certificate(
+            db,
+            agent_profile,
+            progress.training_module,
+            public_base_url=str(http_request.base_url).rstrip("/"),
+        )
+        if certificate is not None:
+            progress.certificate_issued = True
+            progress.expiry_date = certificate.expiry_date
 
     db.flush()
     sync_agent_onboarding_progress(db, agent_profile, actor_user_id=current_user.id)
