@@ -56,6 +56,7 @@ router = APIRouter(tags=["Training Academy"])
 ALLOWED_VIDEO_EXTENSIONS = {".mp4", ".mov", ".m4v", ".webm"}
 ALLOWED_PDF_EXTENSIONS = {".pdf"}
 SAFE_FILENAME_PATTERN = re.compile(r"[^A-Za-z0-9._-]+")
+UPLOAD_CHUNK_SIZE_BYTES = 1024 * 1024
 
 
 def clean_material_type(material_type: str) -> str:
@@ -106,6 +107,33 @@ def clean_uploaded_filename(filename: str | None) -> str:
     return cleaned_name or "training-file"
 
 
+def validate_training_material_filename(material_type: str, file_name: str | None) -> str:
+    material_type = clean_material_type(material_type)
+    original_file_name = clean_uploaded_filename(file_name)
+    file_extension = Path(original_file_name).suffix.lower()
+    allowed_extensions = (
+        ALLOWED_VIDEO_EXTENSIONS if material_type == "Video" else ALLOWED_PDF_EXTENSIONS
+    )
+
+    if file_extension not in allowed_extensions:
+        allowed = ", ".join(sorted(allowed_extensions))
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail=f"Please upload one of these file types: {allowed}.",
+        )
+
+    return original_file_name
+
+
+def build_training_material_file_target(training_module_id: int, original_file_name: str) -> tuple[Path, str]:
+    module_upload_dir = settings.upload_dir / "training" / f"module-{training_module_id}"
+    module_upload_dir.mkdir(parents=True, exist_ok=True)
+    stored_file_name = f"{uuid4().hex}-{original_file_name}"
+    target_path = module_upload_dir / stored_file_name
+    public_path = f"/uploaded-files/training/module-{training_module_id}/{stored_file_name}"
+    return target_path, public_path
+
+
 def save_training_material_file(
     training_module_id: int,
     upload_request: TrainingMaterialUploadRequest,
@@ -137,18 +165,7 @@ def save_training_material_file_bytes(
     file_bytes: bytes,
 ) -> tuple[str, str]:
     material_type = clean_material_type(material_type)
-    original_file_name = clean_uploaded_filename(file_name)
-    file_extension = Path(original_file_name).suffix.lower()
-    allowed_extensions = (
-        ALLOWED_VIDEO_EXTENSIONS if material_type == "Video" else ALLOWED_PDF_EXTENSIONS
-    )
-
-    if file_extension not in allowed_extensions:
-        allowed = ", ".join(sorted(allowed_extensions))
-        raise HTTPException(
-            status_code=status.HTTP_400_BAD_REQUEST,
-            detail=f"Please upload one of these file types: {allowed}.",
-        )
+    original_file_name = validate_training_material_filename(material_type, file_name)
 
     if not file_bytes:
         raise HTTPException(
@@ -162,10 +179,7 @@ def save_training_material_file_bytes(
             detail=f"Training files must be {settings.max_upload_size_mb}MB or smaller.",
         )
 
-    module_upload_dir = settings.upload_dir / "training" / f"module-{training_module_id}"
-    module_upload_dir.mkdir(parents=True, exist_ok=True)
-    stored_file_name = f"{uuid4().hex}-{original_file_name}"
-    target_path = module_upload_dir / stored_file_name
+    target_path, public_path = build_training_material_file_target(training_module_id, original_file_name)
 
     try:
         target_path.write_bytes(file_bytes)
@@ -173,7 +187,46 @@ def save_training_material_file_bytes(
         target_path.unlink(missing_ok=True)
         raise
 
-    public_path = f"/uploaded-files/training/module-{training_module_id}/{stored_file_name}"
+    return original_file_name, public_path
+
+
+async def save_training_material_upload_file(
+    training_module_id: int,
+    material_type: str,
+    uploaded_file: UploadFile,
+) -> tuple[str, str]:
+    material_type = clean_material_type(material_type)
+    original_file_name = validate_training_material_filename(material_type, uploaded_file.filename)
+    target_path, public_path = build_training_material_file_target(training_module_id, original_file_name)
+    bytes_written = 0
+
+    try:
+        with target_path.open("wb") as output_file:
+            while True:
+                chunk = await uploaded_file.read(UPLOAD_CHUNK_SIZE_BYTES)
+                if not chunk:
+                    break
+                bytes_written += len(chunk)
+                if bytes_written > settings.max_upload_size_bytes:
+                    raise HTTPException(
+                        status_code=status.HTTP_413_REQUEST_ENTITY_TOO_LARGE,
+                        detail=f"Training files must be {settings.max_upload_size_mb}MB or smaller.",
+                    )
+                output_file.write(chunk)
+    except HTTPException:
+        target_path.unlink(missing_ok=True)
+        raise
+    except Exception:
+        target_path.unlink(missing_ok=True)
+        raise
+
+    if bytes_written == 0:
+        target_path.unlink(missing_ok=True)
+        raise HTTPException(
+            status_code=status.HTTP_400_BAD_REQUEST,
+            detail="The uploaded file is empty.",
+        )
+
     return original_file_name, public_path
 
 
@@ -462,14 +515,11 @@ async def upload_training_material(
 ) -> TrainingModule:
     require_admin_user(current_user)
     training_module = get_training_module_or_404(db, module_id)
-    file_bytes = await uploaded_file.read()
     material_type = clean_material_type(material_type)
-    _file_name, public_path = save_training_material_file_bytes(
-        module_id,
-        material_type,
-        uploaded_file.filename,
-        file_bytes,
-    )
+    try:
+        _file_name, public_path = await save_training_material_upload_file(module_id, material_type, uploaded_file)
+    finally:
+        await uploaded_file.close()
     file_url = build_public_file_url(http_request, public_path)
 
     if material_type == "Video":
