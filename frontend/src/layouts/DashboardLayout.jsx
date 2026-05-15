@@ -55,6 +55,7 @@ const adminNavItems = [
   { label: "Document Review", to: "/admin/documents", icon: FileCheck2 },
   { label: "Compliance Admin", to: "/admin/compliance", icon: ShieldCheck },
   { label: "Certificates Admin", to: "/admin/certificates", icon: Award },
+  { label: "Supplier Access Admin", to: "/admin/supplier-access", icon: ClipboardList },
   { label: "Audit Logs", to: "/admin/audit-logs", icon: ClipboardList },
   { label: "Reports", to: "/admin/reports", icon: BarChart3 },
   { label: "Settings", to: "/admin/settings", icon: ClipboardList },

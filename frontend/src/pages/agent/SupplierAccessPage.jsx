@@ -53,8 +53,21 @@ function SupplierAccessContent() {
                   </div>
                   <StatusBadge status={supplier.training_required ? "Training Required" : "Available"} />
                 </div>
-                <p className="mt-3 whitespace-pre-wrap text-sm text-slate-600">{supplier.login_instructions || "Login instructions have not been added yet."}</p>
-                {supplier.access_notes ? <p className="mt-3 text-sm text-slate-500">{supplier.access_notes}</p> : null}
+                <div className="mt-3 space-y-3 text-sm">
+                  <div>
+                    <p className="font-semibold text-slate-900">How to access</p>
+                    <p className="mt-1 whitespace-pre-wrap text-slate-600">{supplier.access_notes || "Access instructions have not been added yet."}</p>
+                  </div>
+                  <div>
+                    <p className="font-semibold text-slate-900">How to get a login</p>
+                    <p className="mt-1 whitespace-pre-wrap text-slate-600">{supplier.login_instructions || "Login instructions have not been added yet."}</p>
+                  </div>
+                </div>
+                {supplier.training_required ? (
+                  <p className="mt-3 text-sm font-medium text-amber-700">
+                    Training must be completed before using this supplier.
+                  </p>
+                ) : null}
                 {supplier.portal_url ? (
                   <a className="mt-4 inline-flex items-center gap-2 rounded-lg border border-slate-300 px-3 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50" href={supplier.portal_url} target="_blank" rel="noreferrer">
                     Open portal

@@ -30,6 +30,7 @@ import AdminMembershipPaymentsPage from "./pages/admin/AdminMembershipPaymentsPa
 import AdminOnboardingManagementPage from "./pages/admin/AdminOnboardingManagementPage.jsx";
 import AdminReportsPage from "./pages/admin/AdminReportsPage.jsx";
 import AdminSettingsPage from "./pages/admin/AdminSettingsPage.jsx";
+import AdminSupplierAccessPage from "./pages/admin/AdminSupplierAccessPage.jsx";
 import AdminTrainingModuleBuilderPage from "./pages/admin/AdminTrainingModuleBuilderPage.jsx";
 import AdminTrainingModulesPage from "./pages/admin/AdminTrainingModulesPage.jsx";
 import ForgotPasswordPage from "./pages/ForgotPasswordPage.jsx";
@@ -87,6 +88,7 @@ export default function App() {
           <Route path="/admin/documents" element={adminPage(<AdminDocumentReviewPage />)} />
           <Route path="/admin/compliance" element={adminPage(<AdminComplianceDashboardPage />)} />
           <Route path="/admin/certificates" element={adminPage(<AdminCertificatesPage />)} />
+          <Route path="/admin/supplier-access" element={adminPage(<AdminSupplierAccessPage />)} />
           <Route path="/admin/audit-logs" element={adminPage(<AdminAuditLogsPage />)} />
           <Route path="/admin/reports" element={adminPage(<AdminReportsPage />)} />
           <Route path="/admin/settings" element={adminPage(<AdminSettingsPage />)} />

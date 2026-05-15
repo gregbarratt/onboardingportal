@@ -48,6 +48,10 @@ class SupplierAccessCreate(BaseModel):
         return clean_optional_text(value)
 
 
+class SupplierAccessUpdate(SupplierAccessCreate):
+    pass
+
+
 class SupplierAccessRead(BaseModel):
     id: int
     supplier_name: str

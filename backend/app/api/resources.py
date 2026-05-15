@@ -16,6 +16,7 @@ from app.schemas.resources import (
     MarketingAssetRead,
     SupplierAccessCreate,
     SupplierAccessRead,
+    SupplierAccessUpdate,
 )
 
 
@@ -39,6 +40,16 @@ def get_training_module_or_404(db: Session, training_module_id: int | None) -> N
             status_code=status.HTTP_404_NOT_FOUND,
             detail="Related training module not found.",
         )
+
+
+def get_supplier_access_or_404(db: Session, supplier_access_id: int) -> SupplierAccess:
+    supplier_access = db.get(SupplierAccess, supplier_access_id)
+    if supplier_access is None:
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail="Supplier access record not found.",
+        )
+    return supplier_access
 
 
 def require_supplier_access_for_agent(db: Session, current_user: User) -> None:
@@ -126,6 +137,31 @@ def create_supplier_access(
         created_by=current_user.id,
     )
     db.add(supplier_access)
+    db.commit()
+    db.refresh(supplier_access)
+    return supplier_access
+
+
+@router.put("/supplier-access/{supplier_access_id}", response_model=SupplierAccessRead)
+def update_supplier_access(
+    supplier_access_id: int,
+    request: SupplierAccessUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> SupplierAccess:
+    require_admin_user(current_user)
+    supplier_access = get_supplier_access_or_404(db, supplier_access_id)
+    get_training_module_or_404(db, request.related_training_module)
+
+    supplier_access.supplier_name = request.supplier_name
+    supplier_access.supplier_type = request.supplier_type
+    supplier_access.portal_url = request.portal_url
+    supplier_access.login_instructions = request.login_instructions
+    supplier_access.access_notes = request.access_notes
+    supplier_access.training_required = request.training_required
+    supplier_access.related_training_module = request.related_training_module
+    supplier_access.visible_to_agents = request.visible_to_agents
+
     db.commit()
     db.refresh(supplier_access)
     return supplier_access
