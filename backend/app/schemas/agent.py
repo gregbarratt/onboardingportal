@@ -297,5 +297,6 @@ class FinalApprovalStatusRead(BaseModel):
     current_status: str
     ready_for_approval: bool
     approved_to_trade: bool
+    tracking_exempt: bool = False
     missing_requirements: list[str]
     requirements: list[FinalApprovalRequirementRead]

@@ -13,6 +13,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.api.agents import check_agent_access, get_agent_or_404, is_admin_user
 from app.api.deps import get_current_active_user
+from app.core.agent_statuses import is_onboarding_tracking_exempt
 from app.core.training import (
     DEFAULT_TRAINING_PROGRESS_STATUS,
     DEFAULT_TRAINING_TRACK,
@@ -341,6 +342,9 @@ def ensure_training_assignment(
 
 
 def ensure_mandatory_training_assignments(db: Session, agent_profile: AgentProfile) -> None:
+    if is_onboarding_tracking_exempt(agent_profile.status):
+        return
+
     mandatory_modules = list(
         db.scalars(
             select(TrainingModule)
@@ -385,6 +389,9 @@ def get_own_agent_profile_or_404(db: Session, current_user: User) -> AgentProfil
 
 
 def get_missing_mandatory_onboarding_training(db: Session, agent_profile: AgentProfile) -> list[str]:
+    if is_onboarding_tracking_exempt(agent_profile.status):
+        return []
+
     ensure_mandatory_training_assignments(db, agent_profile)
     mandatory_modules = list(
         db.scalars(
@@ -832,6 +839,8 @@ def list_agent_training(
 ) -> list[AgentTrainingProgress]:
     agent_profile = get_agent_or_404(db, agent_profile_id)
     check_agent_access(agent_profile, current_user)
+    if is_onboarding_tracking_exempt(agent_profile.status):
+        return []
     ensure_mandatory_training_assignments(db, agent_profile)
     return list(
         db.scalars(

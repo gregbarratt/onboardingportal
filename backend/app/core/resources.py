@@ -23,6 +23,7 @@ MARKETING_ASSET_TYPES = (
 SUPPLIER_ACCESS_AGENT_STATUSES = (
     "Approved to Trade",
     "Active Agent",
+    "Existing Agent",
 )
 
 SOCIAL_MEDIA_POLICY_TYPE = "Advertising and Social Media"

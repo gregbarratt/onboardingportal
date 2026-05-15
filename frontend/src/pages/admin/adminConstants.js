@@ -8,6 +8,8 @@ export const agentStatuses = [
   "Awaiting Final Approval",
   "Approved to Trade",
   "Active Agent",
+  "Existing Agent",
+  "Head Office / Admin Staff",
   "Suspended",
   "Payment Overdue",
   "Compliance Hold",

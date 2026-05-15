@@ -430,7 +430,9 @@ function FinalApprovalCard({ approval, loading, approving, onApprove }) {
 
   const statusText = approval.approved_to_trade
     ? "Approved to Trade"
-    : approval.ready_for_approval
+    : approval.tracking_exempt
+      ? "Tracking exempt"
+      : approval.ready_for_approval
       ? "Ready for approval"
       : `${approval.missing_requirements.length} item${approval.missing_requirements.length === 1 ? "" : "s"} missing`;
 
@@ -442,7 +444,7 @@ function FinalApprovalCard({ approval, loading, approving, onApprove }) {
         <PrimaryButton
           type="button"
           icon={ShieldCheck}
-          disabled={!approval.ready_for_approval || approval.approved_to_trade || approving}
+          disabled={approval.tracking_exempt || !approval.ready_for_approval || approval.approved_to_trade || approving}
           onClick={onApprove}
         >
           {approving ? "Approving..." : "Approve to Trade"}
@@ -460,6 +462,11 @@ function FinalApprovalCard({ approval, loading, approving, onApprove }) {
         {approval.ready_for_approval ? (
           <p className="rounded-lg bg-emerald-50 px-3 py-2 text-sm font-medium text-emerald-700">
             All blocking checks are complete.
+          </p>
+        ) : null}
+        {approval.tracking_exempt ? (
+          <p className="rounded-lg bg-sky-50 px-3 py-2 text-sm font-medium text-sky-700">
+            This person is not included in onboarding or mandatory training tracking.
           </p>
         ) : null}
       </div>

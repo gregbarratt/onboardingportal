@@ -9,6 +9,7 @@ from sqlalchemy.orm import Session
 
 from app.api.agents import is_admin_user
 from app.api.deps import get_current_active_user
+from app.core.agent_statuses import ONBOARDING_TRACKING_EXEMPT_STATUSES, is_onboarding_tracking_exempt
 from app.core.config import settings
 from app.core.compliance import REQUIRED_COMPLIANCE_DOCUMENT_TYPES
 from app.core.roles import PAYMENT_ADMIN_ROLE_NAMES
@@ -211,10 +212,6 @@ def approval_queue_item(
 
 
 def build_approval_queue(db: Session, current_user: User, agents: list[AgentProfile]) -> list[dict[str, Any]]:
-    agent_ids = [agent.id for agent in agents]
-    if not agent_ids:
-        return []
-
     document_rows = db.execute(
         apply_agent_scope(
             select(Document, AgentProfile)
@@ -244,6 +241,7 @@ def build_approval_queue(db: Session, current_user: User, agents: list[AgentProf
             .join(OnboardingStep, AgentOnboardingProgress.step_id == OnboardingStep.id)
             .join(AgentProfile, AgentOnboardingProgress.agent_id == AgentProfile.id)
             .where(AgentOnboardingProgress.completion_status == "Awaiting Review")
+            .where(~AgentProfile.status.in_(ONBOARDING_TRACKING_EXEMPT_STATUSES))
             .order_by(AgentOnboardingProgress.updated_at.desc(), AgentOnboardingProgress.id.desc()),
             current_user,
         )
@@ -274,7 +272,7 @@ def build_approval_queue(db: Session, current_user: User, agents: list[AgentProf
             created_at=agent.updated_at,
         )
         for agent in agents
-        if agent.status == "Awaiting Final Approval"
+        if agent.status == "Awaiting Final Approval" and not is_onboarding_tracking_exempt(agent.status)
     ]
 
     approval_items = document_items + onboarding_items + final_approval_items
@@ -351,11 +349,14 @@ def get_admin_dashboard_summary(
     require_admin_user(current_user)
     agents = list(db.scalars(apply_agent_scope(select(AgentProfile).order_by(AgentProfile.id), current_user)))
     agent_ids = [agent.id for agent in agents]
+    tracked_agents = [agent for agent in agents if not is_onboarding_tracking_exempt(agent.status)]
+    tracked_agent_ids = [agent.id for agent in tracked_agents]
 
     if not agent_ids:
         return {
             "total_agents": 0,
             "active_agents": 0,
+            "tracking_exempt_agents": 0,
             "in_onboarding": 0,
             "awaiting_payment": 0,
             "final_approval": 0,
@@ -386,7 +387,8 @@ def get_admin_dashboard_summary(
             select(func.count(AgentTrainingProgress.id))
             .select_from(AgentTrainingProgress)
             .join(AgentProfile, AgentTrainingProgress.agent_id == AgentProfile.id)
-            .where(AgentTrainingProgress.progress_status.in_(["Overdue", "Expired", "Failed"])),
+            .where(AgentTrainingProgress.progress_status.in_(["Overdue", "Expired", "Failed"]))
+            .where(~AgentProfile.status.in_(ONBOARDING_TRACKING_EXEMPT_STATUSES)),
             current_user,
         )
     ) or 0
@@ -419,17 +421,17 @@ def get_admin_dashboard_summary(
 
     verified_documents = db.execute(
         select(Document.agent_id, Document.document_type)
-        .where(Document.agent_id.in_(agent_ids))
+        .where(Document.agent_id.in_(tracked_agent_ids or [0]))
         .where(Document.verified.is_(True))
         .where(Document.status == "Verified")
         .where(Document.document_type.in_(REQUIRED_COMPLIANCE_DOCUMENT_TYPES))
     ).all()
-    verified_document_types_by_agent: dict[int, set[str]] = {agent_id: set() for agent_id in agent_ids}
+    verified_document_types_by_agent: dict[int, set[str]] = {agent_id: set() for agent_id in tracked_agent_ids}
     for agent_id, document_type in verified_documents:
         verified_document_types_by_agent.setdefault(agent_id, set()).add(document_type)
     missing_document_agents_count = sum(
         1
-        for agent_id in agent_ids
+        for agent_id in tracked_agent_ids
         if any(document_type not in verified_document_types_by_agent.get(agent_id, set()) for document_type in REQUIRED_COMPLIANCE_DOCUMENT_TYPES)
     )
 
@@ -441,7 +443,8 @@ def get_admin_dashboard_summary(
             .join(TrainingModule, AgentTrainingProgress.training_module_id == TrainingModule.id)
             .where(AgentTrainingProgress.expiry_date.is_not(None))
             .where(AgentTrainingProgress.expiry_date < date.today())
-            .where(TrainingModule.mandatory.is_(True)),
+            .where(TrainingModule.mandatory.is_(True))
+            .where(~AgentProfile.status.in_(ONBOARDING_TRACKING_EXEMPT_STATUSES)),
             current_user,
         )
     ) or 0
@@ -450,10 +453,11 @@ def get_admin_dashboard_summary(
 
     return {
         "total_agents": len(agents),
-        "active_agents": sum(1 for agent in agents if agent.status in {"Approved to Trade", "Active Agent"}),
-        "in_onboarding": sum(1 for agent in agents if "Onboarding" in agent.status or "Training" in agent.status),
-        "awaiting_payment": sum(1 for agent in agents if agent.status in {"Payment Pending", "Payment Overdue"}),
-        "final_approval": sum(1 for agent in agents if agent.status == "Awaiting Final Approval"),
+        "active_agents": sum(1 for agent in agents if agent.status in {"Approved to Trade", "Active Agent", "Existing Agent"}),
+        "tracking_exempt_agents": sum(1 for agent in agents if is_onboarding_tracking_exempt(agent.status)),
+        "in_onboarding": sum(1 for agent in tracked_agents if "Onboarding" in agent.status or "Training" in agent.status),
+        "awaiting_payment": sum(1 for agent in tracked_agents if agent.status in {"Payment Pending", "Payment Overdue"}),
+        "final_approval": sum(1 for agent in tracked_agents if agent.status == "Awaiting Final Approval"),
         "failed_payments": failed_payments,
         "overdue_training": overdue_training,
         "missed_calls": missed_calls,

@@ -3,6 +3,7 @@ from datetime import date
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
+from app.core.agent_statuses import is_onboarding_tracking_exempt
 from app.core.resources import SOCIAL_MEDIA_POLICY_TYPE
 from app.models.agent_profile import AgentProfile
 from app.models.compliance import CompliancePolicy, PolicyAcceptance
@@ -22,6 +23,25 @@ PASSING_ATTENDANCE_STATUSES = ("Attended", "Watched Recording")
 
 
 def build_final_approval_status(db: Session, agent_profile: AgentProfile) -> dict:
+    if is_onboarding_tracking_exempt(agent_profile.status):
+        return {
+            "agent_id": agent_profile.id,
+            "agent_name": f"{agent_profile.first_name} {agent_profile.last_name}",
+            "current_status": agent_profile.status,
+            "ready_for_approval": False,
+            "approved_to_trade": False,
+            "tracking_exempt": True,
+            "missing_requirements": [],
+            "requirements": [
+                _requirement(
+                    "tracking_exempt",
+                    "Onboarding and training tracking switched off",
+                    True,
+                    "This status is used for existing agents or head office/admin staff, so the portal does not chase onboarding or mandatory training.",
+                )
+            ],
+        }
+
     requirements = [
         _membership_active(db, agent_profile.id),
         _payment_setup_complete(db, agent_profile.id),
@@ -48,6 +68,7 @@ def build_final_approval_status(db: Session, agent_profile: AgentProfile) -> dic
         "current_status": agent_profile.status,
         "ready_for_approval": not blocking_missing and not approved_to_trade,
         "approved_to_trade": approved_to_trade,
+        "tracking_exempt": False,
         "missing_requirements": blocking_missing,
         "requirements": requirements,
     }

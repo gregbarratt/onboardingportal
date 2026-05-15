@@ -9,6 +9,7 @@ import {
   Database,
   HardDrive,
   ShieldAlert,
+  ShieldCheck,
   Server,
   UserCheck,
   UserRoundCheck,
@@ -49,6 +50,7 @@ export default function AdminDashboardPage() {
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-5">
           <StatCard label="Total agents" value={stats.total_agents || 0} icon={UsersRound} />
           <StatCard label="Active agents" value={stats.active_agents || 0} icon={UserRoundCheck} />
+          <StatCard label="Tracking exempt" value={stats.tracking_exempt_agents || 0} icon={ShieldCheck} />
           <StatCard label="In onboarding" value={stats.in_onboarding || 0} icon={Clock3} />
           <StatCard label="Awaiting payment" value={stats.awaiting_payment || 0} icon={CreditCard} />
           <StatCard label="Final approval" value={stats.final_approval || 0} icon={UserCheck} />

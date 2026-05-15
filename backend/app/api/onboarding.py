@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.api.agents import check_agent_access, get_agent_or_404, is_admin_user
 from app.api.deps import get_current_active_user
+from app.core.agent_statuses import ONBOARDING_TRACKING_EXEMPT_STATUSES, is_onboarding_tracking_exempt
 from app.core.onboarding_statuses import DEFAULT_ONBOARDING_STATUS, REMOVED_DEFAULT_ONBOARDING_STEP_TITLES
 from app.db.session import get_db
 from app.models.agent_profile import AgentProfile
@@ -162,6 +163,7 @@ def list_admin_onboarding_summary(
         )
 
     agent_query = select(AgentProfile).order_by(AgentProfile.id)
+    agent_query = agent_query.where(~AgentProfile.status.in_(ONBOARDING_TRACKING_EXEMPT_STATUSES))
     if not can_manage_all_organizations(current_user):
         if current_user.organization_id is None:
             return []
@@ -218,6 +220,8 @@ def list_agent_onboarding(
 ) -> list[AgentOnboardingProgress]:
     agent_profile = get_agent_or_404(db, agent_profile_id)
     check_agent_access(agent_profile, current_user)
+    if is_onboarding_tracking_exempt(agent_profile.status):
+        return []
     ensure_agent_onboarding_progress(db, agent_profile)
     sync_agent_onboarding_progress(db, agent_profile, actor_user_id=current_user.id)
     db.commit()

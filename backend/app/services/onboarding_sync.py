@@ -3,6 +3,7 @@ from datetime import date
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.core.agent_statuses import is_onboarding_tracking_exempt
 from app.models.agent_profile import AgentProfile
 from app.models.document import Document
 from app.models.membership import Membership
@@ -47,6 +48,9 @@ def sync_agent_onboarding_progress(
     actor_user_id: int | None = None,
 ) -> None:
     """Keep visible checklist rows aligned with work completed elsewhere."""
+    if is_onboarding_tracking_exempt(agent_profile.status):
+        return
+
     _sync_profile_step(db, agent_profile, actor_user_id)
     _sync_bank_details_step(db, agent_profile, actor_user_id)
     _sync_document_upload_step(db, agent_profile, ID_DOCUMENT_STEP_TITLE, "ID Document", actor_user_id)

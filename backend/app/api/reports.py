@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, selectinload
 
 from app.api.agents import is_admin_user
 from app.api.deps import get_current_active_user
+from app.core.agent_statuses import is_onboarding_tracking_exempt
 from app.db.session import get_db
 from app.models.agent_profile import AgentProfile
 from app.models.certificate import Certificate
@@ -50,15 +51,17 @@ def get_admin_reports(
 
     agents = get_visible_agents(db, current_user)
     agent_ids = [agent.id for agent in agents]
+    tracked_agents = [agent for agent in agents if not is_onboarding_tracking_exempt(agent.status)]
+    tracked_agent_ids = [agent.id for agent in tracked_agents]
     return AdminReportsRead(
         agents_by_status=build_agents_by_status_report(agents),
         payment_status_report=build_payment_status_report(db, agents),
-        training_completion_report=build_training_completion_report(db, agents),
-        overdue_training_report=build_overdue_training_report(db, agent_ids),
+        training_completion_report=build_training_completion_report(db, tracked_agents),
+        overdue_training_report=build_overdue_training_report(db, tracked_agent_ids),
         attendance_report=build_attendance_report(db, agent_ids),
-        compliance_expiry_report=build_compliance_expiry_report(db, expiry_days, agent_ids),
+        compliance_expiry_report=build_compliance_expiry_report(db, expiry_days, tracked_agent_ids),
         documents_awaiting_review=build_documents_awaiting_review_report(db, agent_ids),
-        final_approval_queue=build_final_approval_queue_report(db, agents),
+        final_approval_queue=build_final_approval_queue_report(db, tracked_agents),
     )
 
 
