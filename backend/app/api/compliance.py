@@ -2,7 +2,7 @@ from datetime import date, datetime, timezone
 from textwrap import wrap
 
 from fastapi import APIRouter, Body, Depends, HTTPException, Request, Response, status
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, selectinload
 
@@ -20,7 +20,9 @@ from app.schemas.compliance import (
     AgentComplianceStatusRead,
     ComplianceAgentIssue,
     CompliancePolicyCreate,
+    CompliancePolicyDeleteResponse,
     CompliancePolicyRead,
+    CompliancePolicyUpdate,
     PolicyAcceptanceRead,
     PolicyAcceptanceRequest,
 )
@@ -292,6 +294,98 @@ def create_compliance_policy(
     db.commit()
     db.refresh(policy)
     return policy
+
+
+@router.put("/compliance/policies/{policy_id}", response_model=CompliancePolicyRead)
+def update_compliance_policy(
+    policy_id: int,
+    request: CompliancePolicyUpdate,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> CompliancePolicy:
+    require_admin_user(current_user)
+    policy = get_policy_or_404(db, policy_id)
+    previous_value = policy_snapshot(policy)
+
+    policy.title = request.title
+    policy.policy_type = request.policy_type
+    policy.content = request.content
+    policy.version = request.version
+    policy.requires_acceptance = request.requires_acceptance
+    policy.published_status = request.published_status
+
+    create_audit_log(
+        db,
+        action_type="Policy edited",
+        description=f"{policy.title} was edited.",
+        created_by=current_user.id,
+        user_id=current_user.id,
+        previous_value=previous_value,
+        new_value=policy_snapshot(policy),
+    )
+    db.commit()
+    db.refresh(policy)
+    return policy
+
+
+@router.delete("/compliance/policies/{policy_id}", response_model=CompliancePolicyDeleteResponse)
+def delete_or_archive_compliance_policy(
+    policy_id: int,
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> dict:
+    require_admin_user(current_user)
+    policy = get_policy_or_404(db, policy_id)
+    acceptance_count = db.scalar(
+        select(func.count(PolicyAcceptance.id)).where(PolicyAcceptance.policy_id == policy.id)
+    ) or 0
+
+    if acceptance_count > 0:
+        previous_value = policy_snapshot(policy)
+        policy.published_status = "Archived"
+        create_audit_log(
+            db,
+            action_type="Policy archived",
+            description=f"{policy.title} was archived because it has signed acceptance records.",
+            created_by=current_user.id,
+            user_id=current_user.id,
+            previous_value=previous_value,
+            new_value=policy_snapshot(policy),
+        )
+        db.commit()
+        db.refresh(policy)
+        return {
+            "message": "This policy has signed acceptance records, so it was archived instead of deleted.",
+            "deleted": False,
+            "archived": True,
+            "policy": policy,
+        }
+
+    policy_title = policy.title
+    previous_value = policy_snapshot(policy)
+    db.delete(policy)
+    create_audit_log(
+        db,
+        action_type="Policy deleted",
+        description=f"{policy_title} was deleted.",
+        created_by=current_user.id,
+        user_id=current_user.id,
+        previous_value=previous_value,
+    )
+    db.commit()
+    return {
+        "message": "Policy deleted.",
+        "deleted": True,
+        "archived": False,
+        "policy": None,
+    }
+
+
+def policy_snapshot(policy: CompliancePolicy) -> str:
+    return (
+        f"title={policy.title}; type={policy.policy_type}; version={policy.version}; "
+        f"status={policy.published_status}; requires_acceptance={policy.requires_acceptance}"
+    )
 
 
 @router.post("/compliance/policies/{policy_id}/accept", response_model=PolicyAcceptanceRead)

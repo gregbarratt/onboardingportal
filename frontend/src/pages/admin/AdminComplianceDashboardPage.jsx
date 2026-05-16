@@ -1,4 +1,4 @@
-import { Download, Eye, Plus, X } from "lucide-react";
+import { Download, Eye, Pencil, Plus, Trash2, X } from "lucide-react";
 import { useState } from "react";
 
 import { Card, DataTable, ErrorBanner, FormField, LoadingState, PrimaryButton, SecondaryButton, SelectInput, StatCard, StatusBadge, TextArea, TextInput } from "../../components/ui.jsx";
@@ -32,10 +32,32 @@ export default function AdminComplianceDashboardPage() {
   const [message, setMessage] = useState("");
   const [error, setError] = useState("");
   const [selectedPolicy, setSelectedPolicy] = useState(null);
+  const [editingPolicy, setEditingPolicy] = useState(null);
+  const [editForm, setEditForm] = useState(blankPolicy);
+  const [updating, setUpdating] = useState(false);
+  const [removingId, setRemovingId] = useState(null);
   const [downloadingId, setDownloadingId] = useState(null);
 
   function update(field, value) {
     setForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function updateEdit(field, value) {
+    setEditForm((current) => ({ ...current, [field]: value }));
+  }
+
+  function startEditPolicy(policy) {
+    setEditingPolicy(policy);
+    setEditForm({
+      title: policy.title || "",
+      policy_type: policy.policy_type || "Compliance Policy",
+      content: policy.content || "",
+      version: policy.version || "1.0",
+      requires_acceptance: Boolean(policy.requires_acceptance),
+      published_status: policy.published_status || "Published",
+    });
+    setError("");
+    setMessage("");
   }
 
   async function createPolicy(event) {
@@ -54,6 +76,49 @@ export default function AdminComplianceDashboardPage() {
       setError(getFriendlyError(err, "We could not create this compliance policy."));
     } finally {
       setSaving(false);
+    }
+  }
+
+  async function savePolicy(event) {
+    event.preventDefault();
+    if (!editingPolicy) return;
+
+    setUpdating(true);
+    setError("");
+    setMessage("");
+
+    try {
+      await apiClient.put(`/compliance/policies/${editingPolicy.id}`, editForm, token);
+      setEditingPolicy(null);
+      await policies.reload();
+      await dashboard.reload();
+      setMessage("Compliance policy updated.");
+    } catch (err) {
+      setError(getFriendlyError(err, "We could not update this compliance policy."));
+    } finally {
+      setUpdating(false);
+    }
+  }
+
+  async function removePolicy(policy) {
+    const confirmed = window.confirm(
+      "Remove this policy? If agents have already accepted it, the portal will archive it instead of deleting the signed history.",
+    );
+    if (!confirmed) return;
+
+    setRemovingId(policy.id);
+    setError("");
+    setMessage("");
+
+    try {
+      const result = await apiClient.delete(`/compliance/policies/${policy.id}`, token);
+      await policies.reload();
+      await dashboard.reload();
+      setMessage(result.message || "Policy removed.");
+    } catch (err) {
+      setError(getFriendlyError(err, "We could not remove this compliance policy."));
+    } finally {
+      setRemovingId(null);
     }
   }
 
@@ -184,9 +249,17 @@ export default function AdminComplianceDashboardPage() {
                 key: "action",
                 label: "Action",
                 render: (row) => (
-                  <SecondaryButton type="button" icon={Eye} onClick={() => setSelectedPolicy(row)}>
-                    Read
-                  </SecondaryButton>
+                  <div className="flex flex-wrap gap-2">
+                    <SecondaryButton type="button" icon={Eye} onClick={() => setSelectedPolicy(row)}>
+                      Read
+                    </SecondaryButton>
+                    <SecondaryButton type="button" icon={Pencil} onClick={() => startEditPolicy(row)}>
+                      Edit
+                    </SecondaryButton>
+                    <SecondaryButton type="button" icon={Trash2} disabled={removingId === row.id} onClick={() => removePolicy(row)}>
+                      {removingId === row.id ? "Removing..." : "Remove"}
+                    </SecondaryButton>
+                  </div>
                 ),
               },
             ]}
@@ -196,8 +269,75 @@ export default function AdminComplianceDashboardPage() {
         {selectedPolicy ? (
           <PolicyReadModal policy={selectedPolicy} onClose={() => setSelectedPolicy(null)} />
         ) : null}
+
+        {editingPolicy ? (
+          <PolicyEditModal
+            policy={editingPolicy}
+            form={editForm}
+            updating={updating}
+            onChange={updateEdit}
+            onSubmit={savePolicy}
+            onClose={() => setEditingPolicy(null)}
+          />
+        ) : null}
       </div>
     </AdminPageShell>
+  );
+}
+
+function PolicyEditModal({ policy, form, updating, onChange, onSubmit, onClose }) {
+  return (
+    <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/40 p-4">
+      <div className="flex max-h-[90vh] w-full max-w-5xl flex-col rounded-lg bg-white shadow-xl">
+        <div className="flex items-start justify-between gap-4 border-b border-slate-200 p-5">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wide text-sky-700">Edit compliance policy</p>
+            <h2 className="mt-1 text-xl font-semibold text-slate-950">{policy.title}</h2>
+            <p className="mt-1 text-sm text-slate-600">Changes affect what agents see from now on.</p>
+          </div>
+          <button type="button" className="rounded-lg p-2 text-slate-500 hover:bg-slate-100" onClick={onClose} aria-label="Close edit form">
+            <X className="h-5 w-5" aria-hidden="true" />
+          </button>
+        </div>
+        <form onSubmit={onSubmit} className="overflow-y-auto p-5">
+          <div className="grid gap-4 md:grid-cols-2">
+            <FormField label="Title">
+              <TextInput required value={form.title} onChange={(event) => onChange("title", event.target.value)} />
+            </FormField>
+            <FormField label="Policy type">
+              <SelectInput value={form.policy_type} onChange={(event) => onChange("policy_type", event.target.value)}>
+                {compliancePolicyTypes.map((type) => <option key={type} value={type}>{type}</option>)}
+              </SelectInput>
+            </FormField>
+            <FormField label="Version">
+              <TextInput required value={form.version} onChange={(event) => onChange("version", event.target.value)} />
+            </FormField>
+            <FormField label="Published status">
+              <SelectInput value={form.published_status} onChange={(event) => onChange("published_status", event.target.value)}>
+                {compliancePolicyStatuses.map((status) => <option key={status} value={status}>{status}</option>)}
+              </SelectInput>
+            </FormField>
+            <div className="md:col-span-2">
+              <FormField label="Policy content">
+                <TextArea required value={form.content} onChange={(event) => onChange("content", event.target.value)} className="min-h-64" />
+              </FormField>
+            </div>
+            <div className="md:col-span-2 flex items-center gap-2">
+              <input type="checkbox" checked={form.requires_acceptance} onChange={(event) => onChange("requires_acceptance", event.target.checked)} />
+              <span className="text-sm font-medium text-slate-700">Requires agent acceptance</span>
+            </div>
+          </div>
+          <div className="mt-5 flex flex-wrap justify-end gap-3 border-t border-slate-200 pt-5">
+            <SecondaryButton type="button" icon={X} onClick={onClose}>
+              Cancel
+            </SecondaryButton>
+            <PrimaryButton type="submit" icon={Pencil} disabled={updating}>
+              {updating ? "Saving..." : "Save policy"}
+            </PrimaryButton>
+          </div>
+        </form>
+      </div>
+    </div>
   );
 }
 

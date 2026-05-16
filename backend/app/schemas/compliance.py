@@ -54,6 +54,10 @@ class CompliancePolicyCreate(BaseModel):
         return cleaned
 
 
+class CompliancePolicyUpdate(CompliancePolicyCreate):
+    pass
+
+
 class CompliancePolicyRead(BaseModel):
     id: int
     title: str
@@ -67,6 +71,13 @@ class CompliancePolicyRead(BaseModel):
     updated_at: datetime
 
     model_config = ConfigDict(from_attributes=True)
+
+
+class CompliancePolicyDeleteResponse(BaseModel):
+    message: str
+    deleted: bool
+    archived: bool
+    policy: CompliancePolicyRead | None = None
 
 
 class PolicyAcceptanceRequest(BaseModel):
