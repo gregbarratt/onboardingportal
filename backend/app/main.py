@@ -12,6 +12,7 @@ from app.api.compliance import router as compliance_router
 from app.api.documents import router as documents_router
 from app.api.health import router as health_router
 from app.api.live_training import router as live_training_router
+from app.api.messages import router as messages_router
 from app.api.memberships import router as memberships_router
 from app.api.notifications import router as notifications_router
 from app.api.onboarding import router as onboarding_router
@@ -69,6 +70,7 @@ app.include_router(onboarding_router)
 app.include_router(organizations_router)
 app.include_router(training_router)
 app.include_router(live_training_router)
+app.include_router(messages_router)
 app.include_router(documents_router)
 app.include_router(compliance_router)
 app.include_router(certificates_router)

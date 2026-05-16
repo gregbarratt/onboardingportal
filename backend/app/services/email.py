@@ -53,3 +53,37 @@ def send_test_email(*, to_email: str) -> bool:
             "If you received this, password reset emails can be sent from the portal."
         ),
     )
+
+
+def send_agent_message_to_accounts(*, agent_name: str, agent_email: str, subject: str, message: str, ticket_url: str) -> bool:
+    to_email = settings.accounts_email or settings.smtp_from_email
+    if not to_email:
+        return False
+
+    return send_email(
+        to_email=to_email,
+        subject=f"New portal message from {agent_name}: {subject}",
+        body=(
+            "A new message has been sent through the One Travel Club onboarding portal.\n\n"
+            f"Agent: {agent_name}\n"
+            f"Email: {agent_email}\n"
+            f"Subject: {subject}\n\n"
+            f"Message:\n{message}\n\n"
+            f"Open the ticket here:\n{ticket_url}\n"
+        ),
+    )
+
+
+def send_ticket_update_to_agent(*, to_email: str, subject: str, message: str, ticket_url: str) -> bool:
+    if not to_email:
+        return False
+
+    return send_email(
+        to_email=to_email,
+        subject=f"Your One Travel Club message has been updated: {subject}",
+        body=(
+            "Your message in the One Travel Club onboarding portal has been updated.\n\n"
+            f"{message}\n\n"
+            f"Open your messages here:\n{ticket_url}\n"
+        ),
+    )

@@ -5,6 +5,7 @@ from app.models.compliance import CompliancePolicy, PolicyAcceptance
 from app.models.document import Document
 from app.models.live_training import AttendanceLog, LiveTrainingSession
 from app.models.membership import Membership
+from app.models.message import SupportTicket, SupportTicketMessage
 from app.models.notification import Notification
 from app.models.onboarding import AgentOnboardingProgress, OnboardingStep
 from app.models.organization import Organization
@@ -36,6 +37,8 @@ __all__ = [
     "Document",
     "LiveTrainingSession",
     "Membership",
+    "SupportTicket",
+    "SupportTicketMessage",
     "Notification",
     "OnboardingStep",
     "Organization",

@@ -33,6 +33,7 @@ class Settings(BaseSettings):
     smtp_password: str = ""
     smtp_from_email: str = ""
     smtp_use_tls: bool = True
+    accounts_email: str = "accounts@onetravelclub.co.uk"
     certificate_instructor_name: str = "Nikki Bishop"
     certificate_authorized_signatory: str = "G Barratt"
     render_api_key: str = ""

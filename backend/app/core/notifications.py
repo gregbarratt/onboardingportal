@@ -11,6 +11,8 @@ AGENT_NOTIFICATION_TYPES = (
     "Document rejected",
     "Approved to trade",
     "Certificate expiring",
+    "Message reply",
+    "Message status changed",
 )
 
 ADMIN_NOTIFICATION_TYPES = (
@@ -23,6 +25,7 @@ ADMIN_NOTIFICATION_TYPES = (
     "Final approval ready",
     "Compliance training expired",
     "Agent suspended",
+    "Agent message",
 )
 
 NOTIFICATION_TYPES = AGENT_NOTIFICATION_TYPES + ADMIN_NOTIFICATION_TYPES

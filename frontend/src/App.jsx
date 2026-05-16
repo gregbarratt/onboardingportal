@@ -10,6 +10,7 @@ import DocumentsAgreementsPage from "./pages/agent/DocumentsAgreementsPage.jsx";
 import FurtherTrainingPage from "./pages/agent/FurtherTrainingPage.jsx";
 import LiveCallsPage from "./pages/agent/LiveCallsPage.jsx";
 import MembershipPaymentsPage from "./pages/agent/MembershipPaymentsPage.jsx";
+import MessagesPage from "./pages/agent/MessagesPage.jsx";
 import OnboardingChecklistPage from "./pages/agent/OnboardingChecklistPage.jsx";
 import ProfilePage from "./pages/agent/ProfilePage.jsx";
 import SupplierAccessPage from "./pages/agent/SupplierAccessPage.jsx";
@@ -25,6 +26,7 @@ import AdminDashboardPage from "./pages/admin/AdminDashboardPage.jsx";
 import AdminDocumentReviewPage from "./pages/admin/AdminDocumentReviewPage.jsx";
 import AdminLiveSessionDetailPage from "./pages/admin/AdminLiveSessionDetailPage.jsx";
 import AdminLiveSessionsPage from "./pages/admin/AdminLiveSessionsPage.jsx";
+import AdminMessagesPage from "./pages/admin/AdminMessagesPage.jsx";
 import AdminMembershipPaymentsPage from "./pages/admin/AdminMembershipPaymentsPage.jsx";
 import AdminOnboardingManagementPage from "./pages/admin/AdminOnboardingManagementPage.jsx";
 import AdminReportsPage from "./pages/admin/AdminReportsPage.jsx";
@@ -67,6 +69,7 @@ export default function App() {
           <Route path="/further-training" element={<FurtherTrainingPage />} />
           <Route path="/live-calls" element={<LiveCallsPage />} />
           <Route path="/documents" element={<DocumentsAgreementsPage />} />
+          <Route path="/messages" element={<MessagesPage />} />
           <Route path="/certificates" element={<CertificatesPage />} />
           <Route path="/supplier-access" element={<SupplierAccessPage />} />
           <Route path="/compliance" element={<ComplianceCentrePage />} />
@@ -84,6 +87,7 @@ export default function App() {
           <Route path="/admin/live-sessions/:sessionId" element={adminPage(<AdminLiveSessionDetailPage />)} />
           <Route path="/admin/attendance" element={adminPage(<AdminAttendanceLogsPage />)} />
           <Route path="/admin/documents" element={adminPage(<AdminDocumentReviewPage />)} />
+          <Route path="/admin/messages" element={adminPage(<AdminMessagesPage />)} />
           <Route path="/admin/compliance" element={adminPage(<AdminComplianceDashboardPage />)} />
           <Route path="/admin/certificates" element={adminPage(<AdminCertificatesPage />)} />
           <Route path="/admin/supplier-access" element={adminPage(<AdminSupplierAccessPage />)} />
