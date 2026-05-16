@@ -158,6 +158,9 @@ export default function AdminComplianceDashboardPage() {
   }
 
   const data = dashboard.data;
+  const policyRows = policies.data || [];
+  const activePolicies = policyRows.filter((policy) => policy.published_status !== "Archived");
+  const archivedPolicies = policyRows.filter((policy) => policy.published_status === "Archived");
 
   return (
     <AdminPageShell title="Compliance Dashboard" description="Monitor missing documents, compliance holds, expired training, and policy acceptance.">
@@ -235,10 +238,10 @@ export default function AdminComplianceDashboardPage() {
           </form>
         </Card>
 
-        <Card title="Policies">
+        <Card title="Active Policies" description="These are the policies agents can see when published. Removing an accepted policy archives it and moves it out of this list.">
           <DataTable
-            rows={policies.data || []}
-            emptyMessage="No compliance policies have been created yet."
+            rows={activePolicies}
+            emptyMessage="No active compliance policies have been created yet."
             columns={[
               { key: "title", label: "Policy" },
               { key: "policy_type", label: "Type" },
@@ -258,6 +261,34 @@ export default function AdminComplianceDashboardPage() {
                     </SecondaryButton>
                     <SecondaryButton type="button" icon={Trash2} disabled={removingId === row.id} onClick={() => removePolicy(row)}>
                       {removingId === row.id ? "Removing..." : "Remove"}
+                    </SecondaryButton>
+                  </div>
+                ),
+              },
+            ]}
+          />
+        </Card>
+
+        <Card title="Archived Policies" description="Archived policies are hidden from agents, but kept here so signed acceptance records can still be proved later.">
+          <DataTable
+            rows={archivedPolicies}
+            emptyMessage="No archived policies."
+            columns={[
+              { key: "title", label: "Policy" },
+              { key: "policy_type", label: "Type" },
+              { key: "version", label: "Version" },
+              { key: "published_status", label: "Status", render: (row) => <StatusBadge status={row.published_status} /> },
+              { key: "created_at", label: "Created", render: (row) => formatDateTime(row.created_at) },
+              {
+                key: "action",
+                label: "Action",
+                render: (row) => (
+                  <div className="flex flex-wrap gap-2">
+                    <SecondaryButton type="button" icon={Eye} onClick={() => setSelectedPolicy(row)}>
+                      Read
+                    </SecondaryButton>
+                    <SecondaryButton type="button" icon={Pencil} onClick={() => startEditPolicy(row)}>
+                      Edit
                     </SecondaryButton>
                   </div>
                 ),
