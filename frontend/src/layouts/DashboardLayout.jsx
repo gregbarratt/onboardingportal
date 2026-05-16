@@ -183,8 +183,8 @@ function ProfileCompletionGate({ token, showAdmin, children }) {
       setError("");
 
       try {
-        const profiles = await apiClient.get("/agents", token);
-        if (active) setProfile(profiles?.[0] || null);
+        const ownProfile = await apiClient.get("/agents/me", token);
+        if (active) setProfile(ownProfile || null);
       } catch (err) {
         if (active) setError(err?.message || "We could not check your profile.");
       } finally {

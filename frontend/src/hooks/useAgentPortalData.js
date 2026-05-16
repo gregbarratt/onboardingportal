@@ -25,8 +25,8 @@ export function useAgentProfile() {
     setError("");
 
     try {
-      const profiles = await apiClient.get("/agents", token);
-      setProfile(profiles?.[0] || null);
+      const ownProfile = await apiClient.get("/agents/me", token);
+      setProfile(ownProfile || null);
     } catch (err) {
       setError(friendlyError(err, "We could not load the agent profile."));
     } finally {

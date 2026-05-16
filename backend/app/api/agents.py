@@ -379,6 +379,14 @@ def list_agent_profiles(
     return [own_profile] if own_profile is not None else []
 
 
+@router.get("/me", response_model=AgentProfileRead | None)
+def get_my_agent_profile(
+    db: Session = Depends(get_db),
+    current_user: User = Depends(get_current_active_user),
+) -> AgentProfile | None:
+    return get_existing_profile_for_user(db, current_user.id)
+
+
 @router.post("/bulk/enable-access-complete-onboarding-training", response_model=BulkAgentAccessTrainingResponse)
 def enable_access_and_complete_onboarding_training(
     db: Session = Depends(get_db),
